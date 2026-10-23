@@ -41,12 +41,13 @@ jobs:
           Get-Content "$env:RUNNER_TEMP/usage.txt"
           $k = Start-Process native/bin/conchilla-keys.exe -NoNewWindow -PassThru -Wait
           if ($k.ExitCode -ne 2) { Write-Output "::error title=Keys helper broken::exit $($k.ExitCode)"; exit 1 }
-          # the keyboard hook must install and keep running
+          # the keyboard hook must install (it then exits here because nothing is attached to its input)
           $k = Start-Process native/bin/conchilla-keys.exe -ArgumentList "RShift" -NoNewWindow -PassThru -RedirectStandardError "$env:RUNNER_TEMP/keys.txt"
           Start-Sleep -Seconds 3
-          if ($k.HasExited) { Write-Output "::error title=Keyboard hook failed::$(Get-Content "$env:RUNNER_TEMP/keys.txt" -Raw)"; exit 1 }
-          Stop-Process -Id $k.Id -Force
-          Write-Host "keys helper: $(Get-Content "$env:RUNNER_TEMP/keys.txt" -Raw)"
+          if (-not $k.HasExited) { Stop-Process -Id $k.Id -Force }
+          $keysOut = Get-Content "$env:RUNNER_TEMP/keys.txt" -Raw
+          if ($keysOut -notmatch 'READY') { Write-Output "::error title=Keyboard hook failed::$keysOut"; exit 1 }
+          Write-Host "keys helper: $keysOut"
           # Try a real capture of this shell's own audio (the build machine may have no sound device: info only)
           $q = Start-Process native/bin/conchilla-audio.exe -ArgumentList "exclude", "$PID" -NoNewWindow -PassThru -RedirectStandardError "$env:RUNNER_TEMP/try.txt" -RedirectStandardOutput "$env:RUNNER_TEMP/pcm.raw"
           Start-Sleep -Seconds 3
