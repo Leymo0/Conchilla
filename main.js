@@ -45,6 +45,7 @@ const DEFAULT_SETTINGS = {
     audioKbps: 256,
     maxViewers: 8,
     sourceId: null,
+    autoSeal: true,        // drop off the lobby server once streaming starts
   },
   viewer: { bufferMs: 150, zoom: 0, panX: 50, panY: 50, volume: 0.9, showStats: true },
 };

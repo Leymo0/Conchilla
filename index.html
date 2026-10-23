@@ -128,6 +128,7 @@
       <span class="muted">CODE</span><b id="host-code" class="hidden-code">••••-••••-••••-••••</b>
       <button id="show-code" class="small" title="Show / hide the code (hidden so it doesn't end up on stream)">👁</button>
       <button id="copy-code" class="small">Copy</button>
+      <button id="seal-btn" class="small" title="">🔒 Seal</button>
     </div>
     <div id="host-status" class="status">Opening…</div>
   </header>
@@ -137,6 +138,7 @@
       <h2 class="h2-row"><span><span class="idx">01</span> People <span id="host-count" class="muted"></span></span>
         <label class="lock-toggle" title="Nobody new can join while locked"><input type="checkbox" id="lock-joins"><span>🔒 Lock joins</span></label>
       </h2>
+      <label class="check small" title="Once you're streaming, the room drops off the lobby server: nobody else can find it, even with the code"><input type="checkbox" id="auto-seal"> Seal the room when I start streaming</label>
       <ul id="host-roster" class="roster"></ul>
       <div id="banned-wrap" hidden>
         <h3>Blocked this session</h3>
@@ -260,6 +262,7 @@
 <script src="faces.js"></script>
 <script src="stream.js"></script>
 <script src="app.js"></script>
+<script src="medialink.js"></script>
 <script src="appaudio.js"></script>
 <script src="room.js"></script>
 <script src="watch.js"></script>

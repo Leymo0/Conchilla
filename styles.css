@@ -241,3 +241,6 @@ body.idle[data-view="watch"] { cursor: none; }
 
 .vol b.boost { color: var(--warn); text-shadow: 0 0 8px rgba(255, 210, 61, .5); }
 .vol input[type=range] { width: 110px; }
+
+.room-chip.sealed { border-color: var(--good); box-shadow: 0 0 14px rgba(77, 255, 176, .25); }
+.room-chip.sealed b { color: var(--good); text-shadow: 0 0 10px rgba(77, 255, 176, .5); }

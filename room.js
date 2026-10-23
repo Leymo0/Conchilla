@@ -17,6 +17,7 @@ const Room = (() => {
   const members = new Map();         // id → { id, name, face, color, conn, peerId, call, watching, lastSeen, stats, rate }
   const blocked = new Map();         // id → name
   let locked = false;
+  let sealed = false, resealTimer = null, opened = false;
   let stream = null, streaming = false, cfg = null;
   let sources = [], sourceTab = 'screen';
 
@@ -111,7 +112,8 @@ const Room = (() => {
     reset();
     role = 'host';
     me = { id: 'host', name, face: settings.face, color: settings.color, host: true };
-    locked = false; blocked.clear(); members.clear();
+    locked = false; sealed = false; blocked.clear(); members.clear();
+    clearTimeout(resealTimer);
     $('lock-joins').checked = false;
     $('host-chat').innerHTML = '';
     showView('host');
@@ -131,15 +133,29 @@ const Room = (() => {
     code = randomCode();
     showCode(false);
     peer = new Peer(ROOM_PREFIX + code, peerOptions());
-    peer.on('open', () => { setHostStatus('Room open', 'ok'); system('Room open — press Copy and send the code to your friends'); });
+    opened = false;
+    peer.on('open', () => {
+      if (sealed) { peer.disconnect(); return; }
+      setHostStatus('Room open', 'ok');
+      if (!opened) system('Room open — press Copy and send the code to your friends');
+      else system('🔓 Room unsealed — the code works again');
+      opened = true;
+    });
     peer.on('connection', onJoin);
     peer.on('disconnected', () => {
+      if (sealed) { renderSealState(); return; }   // on purpose: nobody can reach the room
       // Only the "phone book" server dropped; people already in stay connected
       setHostStatus('Reconnecting to the lobby server…', 'busy');
       setTimeout(() => { if (peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 1500);
     });
     peer.on('error', (err) => {
-      if (err.type === 'unavailable-id') { peer.destroy(); openRoom(); return; }
+      if (err.type === 'unavailable-id') {
+        // Our code got taken while sealed (practically never). Before anyone joined: just pick a new one.
+        if (!members.size && !streaming) { peer.destroy(); openRoom(); return; }
+        sealed = true; renderSealState();
+        modal("Couldn't reopen the room", 'Someone else is using this code right now. Close the room and open a new one if a friend needs to get back in.');
+        return;
+      }
       if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
         setHostStatus('Lobby server unreachable — retrying…', 'warn');
         return;
@@ -195,9 +211,11 @@ const Room = (() => {
       if (!existing) system(`${name} joined`);
       broadcastRoster();
       if (streaming && m.watching) callMember(m);
+      if (streaming && !sealed && settings.host.autoSeal !== false) setTimeout(() => { if (streaming && !sealed) seal('auto'); }, 1500);
 
       c.on('data', (d) => onGuestData(m, d));
       c.on('close', () => {
+        MediaLink.dropConnection(c);
         if (members.get(id)?.conn !== c) return;
         hangUp(m);
         members.delete(id);
@@ -211,6 +229,7 @@ const Room = (() => {
   function onGuestData(m, d) {
     if (members.get(m.id) !== m || !d || typeof d !== 'object') return;
     m.lastSeen = Date.now();
+    if (d.t === 'sig') { MediaLink.handle(m.conn, d, { config: iceConfig() }); return; }
     if (d.t === 'chat') {
       // flood guard: 8 messages per 5 s
       const now = Date.now();
@@ -246,7 +265,7 @@ const Room = (() => {
 
   function broadcastRoster() {
     const list = publicRoster();
-    broadcast({ t: 'roster', members: list, locked, streaming, stream: streaming ? { w: cfg.w, h: cfg.h, fps: cfg.fps } : null });
+    broadcast({ t: 'roster', members: list, locked, sealed, streaming, stream: streaming ? { w: cfg.w, h: cfg.h, fps: cfg.fps } : null });
     api.toOverlay({ type: 'roster', members: list });
     renderHost();
   }
@@ -263,6 +282,40 @@ const Room = (() => {
         broadcastRoster();
       }
     }
+  }
+
+  // ---------- sealing ----------
+  // Sealed = the host drops off the lobby server. Everyone inside stays connected (it's all
+  // direct now), but the room no longer exists for anyone else: the code just says "no room".
+  function seal(why) {
+    if (sealed || !peer) return;
+    sealed = true;
+    clearTimeout(resealTimer);
+    try { peer.disconnect(); } catch { /* already off */ }
+    system(why === 'auto' ? '🔒 Room sealed — nobody else can find or reach it now' : '🔒 Room sealed');
+    renderSealState();
+    broadcastRoster();
+  }
+
+  // Let someone back in (same code). Seals again by itself once they're in, or after 3 minutes.
+  function unseal() {
+    if (!sealed || !peer) return;
+    sealed = false;
+    if (peer.disconnected) peer.reconnect();
+    renderSealState();
+    broadcastRoster();
+    clearTimeout(resealTimer);
+    resealTimer = setTimeout(() => { if (!sealed && streaming && settings.host.autoSeal !== false) seal('auto'); }, 3 * 60 * 1000);
+  }
+
+  function renderSealState() {
+    if (role !== 'host') return;
+    $('seal-btn').textContent = sealed ? '🔓 Unseal' : '🔒 Seal';
+    $('seal-btn').title = sealed ? 'Reopen the room with the same code (e.g. someone dropped). Seals again once they are back.'
+                                 : 'Drop off the lobby server: nobody else can find or reach the room';
+    $('host-code').parentElement.classList.toggle('sealed', sealed);
+    if (sealed) setHostStatus('🔒 Sealed', 'ok');
+    else if (peer && !peer.disconnected) setHostStatus('Room open', 'ok');
   }
 
   const byPub = (pub) => [...members.values()].find((m) => m.pub === pub);
@@ -396,6 +449,8 @@ const Room = (() => {
         if (u) { blocked.delete(u.dataset.unblock); renderHost(); }
       });
       $('stream-toggle').onclick = () => (streaming ? stopStream('The host stopped streaming') : startStream());
+      $('seal-btn').onclick = () => (sealed ? unseal() : seal('manual'));
+      $('auto-seal').onchange = (e) => save({ host: { autoSeal: e.target.checked } });
       $('show-code').onclick = () => showCode($('host-code').classList.contains('hidden-code'));
       $('copy-code').onclick = () => { navigator.clipboard.writeText(formatCode(code)); $('copy-code').textContent = 'Copied'; setTimeout(() => { $('copy-code').textContent = 'Copy'; }, 1200); };
       $('host-close').onclick = () => leave();
@@ -409,6 +464,7 @@ const Room = (() => {
     $('q-audio').value = h.audio ? String(h.audioKbps) : '0';
     $('q-soundfrom').value = h.soundFrom || 'auto';
     $('q-max').value = h.maxViewers;
+    $('auto-seal').checked = h.autoSeal !== false;
     updateStreamButton();
   }
 
@@ -527,6 +583,7 @@ const Room = (() => {
       broadcast({ t: 'stream', on: true });
       for (const m of members.values()) if (m.watching) callMember(m);
       system(`▶ Streaming ${cfg.w}×${cfg.h} at ${cfg.fps} fps · ${soundNote}`);
+      if (settings.host.autoSeal !== false) seal('auto');
     } catch (err) {
       modal("Couldn't start sharing", err.message || String(err));
     } finally {
@@ -552,8 +609,9 @@ const Room = (() => {
 
   function callMember(m) {
     hangUp(m);
-    if (!peer || !stream) return;
-    const call = peer.call(m.peerId, stream, { metadata: { cfg: publicCfg() }, sdpTransform: makeSdpTransform(cfg) });
+    if (!stream) return;
+    if (!m.conn.open) return;
+    const call = MediaLink.call(m.conn, stream, { metadata: { cfg: publicCfg() }, sdpTransform: makeSdpTransform(cfg), config: iceConfig() });
     if (!call) return;
     m.call = call; m.stats = null;
     call.on('close', () => { if (m.call === call) m.call = null; });
@@ -655,9 +713,9 @@ const Room = (() => {
     $('join-btn').disabled = true;
     $('join-error').textContent = 'Connecting…';
     peer = new Peer(undefined, peerOptions());
-    peer.on('open', connect);
-    peer.on('call', onCall);
-    peer.on('disconnected', () => { setTimeout(() => { if (!leaving && peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 1500); });
+    peer.on('open', () => { if (!conn) connect(); });
+    // Off the lobby server is fine while we're connected to a sealed room; otherwise get back on
+    peer.on('disconnected', () => { setTimeout(() => { if (!leaving && peer && !peer.destroyed && peer.disconnected && !(roomState.sealed && conn?.open)) peer.reconnect(); }, 1500); });
     peer.on('error', (err) => {
       if (err.type === 'peer-unavailable') {
         if (conn?.open || retries > 0) return;           // handled by the retry loop
@@ -696,6 +754,9 @@ const Room = (() => {
     if (!d || typeof d !== 'object') return;
     lastHostBeat = Date.now();
     switch (d.t) {
+      case 'sig':
+        MediaLink.handle(conn, d, { config: iceConfig(), allowIncoming: true, onCall });
+        break;
       case 'welcome': {
         const first = currentView() !== 'lobby' && currentView() !== 'watch';
         me.color = d.you.color;
@@ -722,7 +783,9 @@ const Room = (() => {
       }
       case 'roster':
         roster = d.members || [];
-        roomState = { locked: d.locked, streaming: d.streaming, stream: d.stream };
+        roomState = { locked: d.locked, sealed: !!d.sealed, streaming: d.streaming, stream: d.stream };
+        // Sealed: we don't need the lobby server either
+        if (roomState.sealed && conn?.open && peer && !peer.disconnected) peer.disconnect();
         renderLobby();
         api.toOverlay({ type: 'roster', members: roster });
         break;
@@ -754,7 +817,7 @@ const Room = (() => {
   const colorName = (c) => c.charAt(0).toUpperCase() + c.slice(1);
 
   function onCall(call) {
-    if (role !== 'guest' || call.peer !== ROOM_PREFIX + code) { call.close(); return; }
+    if (role !== 'guest') { call.close(); return; }
     const c = call.metadata?.cfg || {};
     call.answer(undefined, { sdpTransform: makeSdpTransform(c) });
     Watch.attach(call, c);
@@ -779,7 +842,8 @@ const Room = (() => {
       ? (roomState.stream ? `${roomState.stream.w}×${roomState.stream.h} · ${roomState.stream.fps} fps` : '')
       : 'You can chat while you wait. The stream opens by itself.';
     $('rewatch').hidden = !(live && !watching);
-    $('lobby-status').textContent = roomState.locked ? 'Connected · 🔒 room locked' : 'Connected';
+    $('lobby-status').textContent = roomState.sealed ? 'Connected · 🔒 sealed (if you leave, ask the host to Unseal)'
+      : roomState.locked ? 'Connected · 🔒 joins locked' : 'Connected';
   }
 
   function toastLobby(text) { $('waiting-sub').textContent = text; }
@@ -803,9 +867,10 @@ const Room = (() => {
   // Host gone for a moment (Wi-Fi, crash, restart): keep trying for ~1 minute
   function lost() {
     if (leaving || role !== 'guest') return;
+    if (conn) MediaLink.dropConnection(conn);
     Watch.detach();
     if (currentView() === 'watch') showView('lobby');
-    setLobbyStatus('Lost the host — reconnecting…', 'warn');
+    setLobbyStatus(roomState.sealed ? 'Lost the host — the room is sealed: ask the host to press Unseal…' : 'Lost the host — reconnecting…', 'warn');
     scheduleRetry();
   }
 
@@ -813,10 +878,14 @@ const Room = (() => {
     clearTimeout(retryTimer);
     if (leaving) return;
     retries++;
-    if (retries > 20) { endSession('Lost connection to the host.'); return; }
+    if (retries > 20) {
+      endSession(roomState.sealed ? 'Lost connection. The room is sealed: ask the host to press Unseal, then join again with the same code.' : 'Lost connection to the host.');
+      return;
+    }
     retryTimer = setTimeout(() => {
-      if (peer?.disconnected && !peer.destroyed) peer.reconnect();
-      connect();
+      if (!peer || peer.destroyed || leaving) return;
+      if (peer.disconnected) { peer.once('open', connect); peer.reconnect(); }   // back on the lobby server first
+      else connect();
     }, 3000);
   }
 
@@ -902,6 +971,6 @@ const Room = (() => {
   return {
     host, join, leave, sendChat, setWatching, quickState, pushQuick,
     get role() { return role; }, get me() { return me; },
-    _debug: () => ({ role, code, members: [...members.keys()], streaming, locked, roster, cfg }),
+    _debug: () => ({ role, code, members: [...members.keys()], streaming, locked, sealed, roster, roomState, peerOff: !!peer?.disconnected, cfg }),
   };
 })();
