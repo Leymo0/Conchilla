@@ -179,11 +179,12 @@ const Room = (() => {
         hangUp(existing);
       }
       const m = {
-        id, name, face: validFace(meta.face), color, conn: c, peerId: c.peer,
+        // id = their private device id (never sent to anyone); pub = what others see
+        id, pub: existing?.pub || publicId(), name, face: validFace(meta.face), color, conn: c, peerId: c.peer,
         watching: true, lastSeen: Date.now(), call: null, stats: null, rate: [],
       };
       members.set(id, m);
-      c.send({ t: 'welcome', you: { id, color }, code, history: history.slice(-40) });
+      c.send({ t: 'welcome', you: { id: m.pub, color }, code, history: history.slice(-40) });
       if (!existing) system(`${name} joined`);
       broadcastRoster();
       if (streaming && m.watching) callMember(m);
@@ -220,7 +221,7 @@ const Room = (() => {
   }
 
   function postChat(p, text) {
-    const msg = { id: p.id, name: p.name, face: p.face, color: p.color, text, ts: Date.now() };
+    const msg = { id: p.pub || p.id, name: p.name, face: p.face, color: p.color, text, ts: Date.now() };
     broadcast({ t: 'chat', msg });
     addChat(msg);
   }
@@ -232,7 +233,7 @@ const Room = (() => {
   function publicRoster() {
     return [
       { id: me.id, name: me.name, face: me.face, color: me.color, host: true },
-      ...[...members.values()].map((m) => ({ id: m.id, name: m.name, face: m.face, color: m.color, watching: m.watching })),
+      ...[...members.values()].map((m) => ({ id: m.pub, name: m.name, face: m.face, color: m.color, watching: m.watching })),
     ];
   }
 
@@ -257,9 +258,13 @@ const Room = (() => {
     }
   }
 
-  function kick(id, block) {
-    const m = members.get(id);
+  const byPub = (pub) => [...members.values()].find((m) => m.pub === pub);
+  const publicId = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, '0')).join('');
+
+  function kick(pub, block) {
+    const m = byPub(pub);
     if (!m) return;
+    const id = m.id;
     try { m.conn.send({ t: 'kicked', blocked: block }); } catch { /* gone */ }
     if (block) blocked.set(id, m.name);
     hangUp(m);
@@ -274,7 +279,7 @@ const Room = (() => {
     const list = publicRoster();
     $('host-count').textContent = `${list.length}/${(settings.host.maxViewers || 8) + 1}`;
     $('host-roster').innerHTML = list.map((p) => {
-      const m = members.get(p.id);
+      const m = byPub(p.id);
       return rosterRow(p, {
         stats: m ? describeOut(m) : '',
         actions: p.host ? '' : `<div class="row-actions">

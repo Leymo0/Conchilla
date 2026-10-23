@@ -416,6 +416,13 @@ function createWindow() {
   });
 }
 
+// The app's windows only ever show its own pages: no navigating away, no pop-ups
+app.on('web-contents-created', (_e, contents) => {
+  contents.on('will-navigate', (e) => e.preventDefault());
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  contents.on('will-attach-webview', (e) => e.preventDefault());
+});
+
 const testMode = !!process.env.CONCHILLA_TEST;
 const gotLock = testMode || app.requestSingleInstanceLock();
 if (!gotLock) app.quit();

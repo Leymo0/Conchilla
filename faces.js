@@ -57,7 +57,8 @@ const FACE_PARTS = {
     <path d="M34 56 V62 M66 56 V62" stroke="#031014" stroke-width="3"/>`,
 };
 
-const colorHex = (c) => COLORS[c] || c || COLORS.cyan;
+// Only our palette names or a plain #rrggbb — anything else (sent by someone else) is ignored
+const colorHex = (c) => COLORS[c] || (/^#[0-9a-fA-F]{6}$/.test(c) ? c : COLORS.cyan);
 
 // Full avatar tile as an SVG string
 function faceSvg(face, color, size = 48, opts = {}) {

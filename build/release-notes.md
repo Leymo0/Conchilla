@@ -1,5 +1,7 @@
-**Conchilla 0.3.4**: tidier zoom controls
+**Conchilla 0.3.5**: security hardening
 
-- **Scroll wheel only zooms** now. It no longer moves the picture up/down or sideways.
-- New **Center** button: puts the picture back in the middle (both directions) without changing your zoom.
-- Removed the "Cut bars" tickbox. Zoom (up to 200%) does the job.
+- **Nobody can pretend to be someone else in a room.** Each person's private device ID used to be visible to everyone in the room. Someone could copy it to take over a friend's spot (name, colour) by "reconnecting" as them. People now only see a random public ID.
+- **Colours from other people are checked.** Only real colour values are accepted.
+- **The app's windows can't be sent to a web page or open pop-ups.** They only ever show Conchilla's own screens.
+
+Everyone should update. Hosts especially, since the ID fix is on the host's side.
