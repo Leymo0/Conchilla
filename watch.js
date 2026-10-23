@@ -20,7 +20,7 @@ const Watch = (() => {
     newCall.on('stream', (s) => {
       if (call !== newCall) return;
       video.srcObject = s;
-      video.volume = v().volume;
+      routeAudio(s);
       video.play().catch(() => {});
       applyBuffer();
       meter.stop(); meter = new OnTimeMeter(video); meter.start();
@@ -53,9 +53,38 @@ const Watch = (() => {
     const c = call; call = null;
     try { c?.close(); } catch { /* closed */ }
     meter.stop();
+    try { actx?.close(); } catch { /* closed */ }
+    actx = null; gain = null;
     video.srcObject = null;
     if (fullscreen) setFullscreen(false);
     $('watch-stats').textContent = '';
+  }
+
+  // ---------------------------------------------------------------- volume (up to 200%)
+  // A <video> stops at 100%, so the sound goes through Web Audio: gain → limiter → speakers.
+  // (The video element stays attached but muted: Chrome only delivers remote audio that way.)
+  let actx = null, gain = null;
+  function routeAudio(s) {
+    video.muted = true;
+    try { actx?.close(); } catch { /* closed */ }
+    actx = null; gain = null;
+    if (!s.getAudioTracks().length) return;
+    actx = new AudioContext({ latencyHint: 'interactive' });
+    const src = actx.createMediaStreamSource(s);
+    gain = actx.createGain();
+    const limiter = actx.createDynamicsCompressor();   // keeps 200% from crackling on loud bits
+    limiter.threshold.value = -2; limiter.knee.value = 0; limiter.ratio.value = 20;
+    limiter.attack.value = 0.003; limiter.release.value = 0.15;
+    src.connect(gain).connect(limiter).connect(actx.destination);
+    setVolume(v().volume);
+    actx.resume().catch(() => {});
+  }
+  function setVolume(vol) {
+    vol = Math.max(0, Math.min(2, vol));
+    if (gain) gain.gain.setTargetAtTime(vol, actx.currentTime, 0.02);
+    $('w-volume').value = vol;
+    $('w-volume-val').textContent = `${Math.round(vol * 100)}%`;
+    $('w-volume-val').classList.toggle('boost', vol > 1);
   }
 
   // ---------------------------------------------------------------- delay buffer
@@ -259,9 +288,10 @@ const Watch = (() => {
       if (s == null) toast('Still measuring — give it a few seconds');
       else { setBuffer(s); toast(`Buffer set to ${s} ms`); setTimeout(() => toast(''), 1800); }
     };
-    $('w-volume').value = vs().volume;
-    $('w-volume').oninput = (e) => { video.volume = Number(e.target.value); settings.viewer.volume = video.volume; };
-    $('w-volume').onchange = () => save({ viewer: { volume: video.volume } });
+    setVolume(vs().volume);
+    $('w-volume').oninput = (e) => { settings.viewer.volume = Number(e.target.value); setVolume(settings.viewer.volume); };
+    $('w-volume').onchange = () => save({ viewer: { volume: settings.viewer.volume } });
+    $('w-volume-val').ondblclick = () => { settings.viewer.volume = 1; setVolume(1); save({ viewer: { volume: 1 } }); };
     $('w-full').onclick = () => setFullscreen(!fullscreen);
     $('w-chat').onclick = () => api.openChat();
     $('watch-back').onclick = () => Room.setWatching(false);
@@ -282,5 +312,14 @@ const Watch = (() => {
     });
   }
 
-  return { init, showControls, attach, detach, get meter() { return meter; }, layout };
+  // test helper: current output level after the volume stage
+  function level() {
+    if (!gain) return null;
+    if (!level.an || level.ctx !== actx) { level.an = actx.createAnalyser(); gain.connect(level.an); level.ctx = actx; }
+    const buf = new Float32Array(level.an.fftSize); level.an.getFloatTimeDomainData(buf);
+    let peak = 0; for (const x of buf) peak = Math.max(peak, Math.abs(x));
+    return { state: actx.state, gain: gain.gain.value, peak: Number(peak.toFixed(3)) };
+  }
+
+  return { init, showControls, attach, detach, _level: level, get meter() { return meter; }, layout };
 })();

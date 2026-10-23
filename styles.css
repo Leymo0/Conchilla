@@ -238,3 +238,6 @@ body.idle[data-view="watch"] { cursor: none; }
 
 .preset-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 0 2px; }
 .preset-row button { text-transform: none; font-family: var(--mono); }
+
+.vol b.boost { color: var(--warn); text-shadow: 0 0 8px rgba(255, 210, 61, .5); }
+.vol input[type=range] { width: 110px; }
