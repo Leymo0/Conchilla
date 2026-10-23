@@ -1,4 +1,4 @@
-**Conchilla 0.3.2**: volume up to 200%
+**Conchilla 0.3.3**: more zoom
 
-- **Viewers' volume slider now goes to 200%** for quiet movies. A limiter keeps loud parts from crackling. The number turns yellow above 100%; double-click it to go back to 100%.
-- Also in 0.3.1: ultrawide hosts no longer cause black bars, and viewers get **Cut bars**, which removes black bars that are part of the picture.
+- **Zoom / crop now goes to 200%.** 100% is still "fills the screen" (the *Fill* button). From 100–200% you can zoom up to twice as close as that, for when bars are still showing or you just want it bigger. The scroll wheel goes to 200% too.
+- Drag the picture (or use *Vertical*) to choose which part you see while zoomed.

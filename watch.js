@@ -183,7 +183,7 @@ const Watch = (() => {
   }
   setInterval(detectBars, 1500);
 
-  // zoom 0 = whole picture (black bars), 100 = bars gone (fills the window).
+  // zoom 0 = whole picture (black bars), 100 = bars gone (fills the window), 200 = 2× closer still.
   // If the shapes already match, 100 = 2× closer.
   function layout() {
     const W = stage.clientWidth, H = stage.clientHeight;
@@ -192,7 +192,9 @@ const Watch = (() => {
     const cw = vw * (1 - c.l - c.r), ch = vh * (1 - c.t - c.b);      // the real picture
     const fit = Math.min(W / cw, H / ch), cover = Math.max(W / cw, H / ch);
     const full = cover / fit > 1.03 ? cover : fit * 2;
-    const scale = fit + (full - fit) * (v().zoom / 100);
+    // 0–100%: whole picture → fills the window; 100–200%: up to 2× closer than that
+    const z = v().zoom;
+    const scale = z <= 100 ? fit + (full - fit) * (z / 100) : full * (1 + (z - 100) / 100);
     const dw = cw * scale, dh = ch * scale;
     const left = dw > W ? (W - dw) * (v().panX / 100) : (W - dw) / 2;
     const top = dh > H ? (H - dh) * (v().panY / 100) : (H - dh) / 2;
@@ -210,7 +212,7 @@ const Watch = (() => {
   let saveTimer = null;
   function setView(patch) {
     Object.assign(settings.viewer, patch);
-    settings.viewer.zoom = Math.max(0, Math.min(100, settings.viewer.zoom));
+    settings.viewer.zoom = Math.max(0, Math.min(200, settings.viewer.zoom));
     settings.viewer.panX = Math.max(0, Math.min(100, settings.viewer.panX));
     settings.viewer.panY = Math.max(0, Math.min(100, settings.viewer.panY));
     layout();
