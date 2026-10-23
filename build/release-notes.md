@@ -1,7 +1,5 @@
-**Conchilla 0.3.0**: new chat key + F8 quick menu
+**Conchilla 0.3.1**: no more black bars with ultrawide hosts
 
-- **The chat key is now `\\`** (the key above Enter) instead of Caps Lock. If you never changed it, it switches over by itself.
-- **Pick any chat key** in ⚙ Settings → Hotkeys, with quick-pick buttons for **\\**, **Right Shift**, **Right Ctrl** and **Caps Lock**, or click and press any key.
-  - **Right Shift / Right Ctrl**: just tap it on its own. Games still get the key normally, and Shift + letter typing doesn't trigger it.
-- **F8 quick stream menu** (host): opens over your game. Change resolution, frame rate, bitrate, content, codec and sound, or start/stop streaming, without alt-tabbing. Esc or F8 closes it and you're back in the game. For viewers, F8 shows the watch controls.
-- F8 can be changed in Settings too.
+- **Host:** the shared screen is now always captured at its real size and shape. Before, an ultrawide screen could get squeezed into a 16:9 frame with black bars baked in, so zooming couldn't remove them. Lowering the resolution now happens in the encoder, which keeps the exact shape.
+- **Viewers: new "Cut bars"** (on by default). Black bars that are part of the picture (a letterboxed movie, a 16:9 game on an ultrawide screen) are detected and cut off, so **Fill / Zoom 100%** fills your screen with real picture. Press F7 to see what's being cut.
+- Dark scenes aren't mistaken for bars: bars are only added after staying put for a few seconds, and are removed right away if picture shows up there.

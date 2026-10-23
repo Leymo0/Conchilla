@@ -455,15 +455,18 @@ const Room = (() => {
     if (!native) AppAudio.stop();
     await api.selectCapture({ sourceId: h.sourceId, audio: mode === 'pc' });
     const s = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: h.fps, max: h.fps } },
+      // Generous size limits = always the screen's real size and shape. (Smaller limits can make
+      // the capture letterbox an ultrawide screen into a 16:9 frame with black bars baked in.)
+      video: { width: { max: 7680 }, height: { max: 4320 }, frameRate: { ideal: h.fps, max: h.fps } },
       audio: mode === 'pc' ? LOOPBACK_AUDIO : false,
     });
     const video = s.getVideoTracks()[0];
     const size = video.getSettings();
     const t = targetSize(size.width, size.height, h.resolution);
     video.contentHint = CONTENT[h.content]?.hint || 'motion';
-    // scale at capture time (cheaper than encoding the full size and shrinking it)
-    if (t.scale > 1) await video.applyConstraints({ width: { max: t.w }, height: { max: t.h }, frameRate: { max: h.fps } }).catch(() => {});
+    // Shrinking to the chosen resolution happens in the encoder (scaleResolutionDownBy in tune()),
+    // which always keeps the exact shape — no black bars.
+    void t;
     video.onended = () => { if (stream === s) stopStream('The shared window or screen was closed'); };
 
     soundNote = mode === 'off' ? 'no sound' : mode === 'pc' ? 'sound: whole PC' : '';
@@ -591,7 +594,7 @@ const Room = (() => {
     const p = plannedConfig();
     cfg = { ...cfg, ...p };
     video.contentHint = CONTENT[cfg.content]?.hint || 'motion';
-    await video.applyConstraints({ width: { max: cfg.w }, height: { max: cfg.h }, frameRate: { max: cfg.fps } }).catch(() => {});
+    await video.applyConstraints({ width: { max: 7680 }, height: { max: 4320 }, frameRate: { max: cfg.fps } }).catch(() => {});
     for (const m of members.values()) if (m.call) tune(m.call);
     broadcastRoster();
   }

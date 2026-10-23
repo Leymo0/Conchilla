@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS = {
     maxViewers: 8,
     sourceId: null,
   },
-  viewer: { bufferMs: 150, zoom: 0, panX: 50, panY: 50, volume: 0.9, showStats: true },
+  viewer: { bufferMs: 150, zoom: 0, panX: 50, panY: 50, volume: 0.9, showStats: true, autoCrop: true },
 };
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
