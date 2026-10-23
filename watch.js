@@ -236,5 +236,5 @@ const Watch = (() => {
     });
   }
 
-  return { init, attach, detach, get meter() { return meter; }, layout };
+  return { init, showControls, attach, detach, get meter() { return meter; }, layout };
 })();

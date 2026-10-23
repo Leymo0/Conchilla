@@ -1,9 +1,7 @@
-**Conchilla 0.2.0**: share only the app's sound 🔊
+**Conchilla 0.3.0**: new chat key + F8 quick menu
 
-- New **Sound from** setting on the host screen:
-  - **Only the shared app**: when you share a window (game, movie player, browser), friends hear only that app. No Discord, no notifications.
-  - **Everything except Discord**: when you share a whole screen, friends hear your PC minus Discord, so nobody hears their own voice echo back.
-  - **Whole PC**: the old behaviour.
-  - **Auto** (default): picks *only the app* for windows and *everything except Discord* for screens.
-- Needs Windows 10 version 2004 or newer (or Windows 11). On older Windows it falls back to whole-PC sound and says so in the chat.
-- The lobby chat says which sound mode is being used when streaming starts.
+- **The chat key is now `\\`** (the key above Enter) instead of Caps Lock. If you never changed it, it switches over by itself.
+- **Pick any chat key** in ⚙ Settings → Hotkeys, with quick-pick buttons for **\\**, **Right Shift**, **Right Ctrl** and **Caps Lock**, or click and press any key.
+  - **Right Shift / Right Ctrl**: just tap it on its own. Games still get the key normally, and Shift + letter typing doesn't trigger it.
+- **F8 quick stream menu** (host): opens over your game. Change resolution, frame rate, bitrate, content, codec and sound, or start/stop streaming, without alt-tabbing. Esc or F8 closes it and you're back in the game. For viewers, F8 shows the watch controls.
+- F8 can be changed in Settings too.

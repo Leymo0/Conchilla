@@ -124,5 +124,39 @@ body:not(.bottom) #composer { margin-top: 0; }
   color: var(--cy); letter-spacing: .2em; font-size: 1.3em; text-shadow: 0 0 8px var(--cy);
   -webkit-app-region: drag; cursor: move;
 }
-#move-frame[hidden], #composer[hidden] { display: none; }
+#move-frame[hidden], #composer[hidden], #quick[hidden] { display: none; }
 #move-frame small { font-size: .55em; letter-spacing: .08em; opacity: .8; }
+
+/* ---------------- F8 quick stream menu ---------------- */
+#quick {
+  background: rgba(1, 10, 13, .93);
+  border: 1px solid var(--cy);
+  box-shadow: 0 0 24px rgba(25, 240, 255, .3), inset 0 0 20px rgba(25, 240, 255, .06);
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+  padding: 12px 14px 14px;
+  animation: callIn .4s steps(1, end) both;
+}
+.q-head { display: flex; align-items: center; gap: 8px; font-size: .78em; letter-spacing: .2em; color: var(--cy); margin-bottom: 6px; }
+.q-head b { text-shadow: 0 0 8px var(--cy); }
+.q-head .dot { --c: var(--cy); }
+.q-head .hint { margin-left: auto; opacity: .5; letter-spacing: .05em; }
+.q-status { font-size: .85em; opacity: .9; margin-bottom: 10px; }
+.q-status .live { color: #ff4d5e; text-shadow: 0 0 8px #ff4d5e; }
+.q-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 10px; }
+.q-grid select, .q-grid input { width: 100%; min-width: 0; margin: 0; }
+.q-grid label { display: flex; flex-direction: column; gap: 4px; font-size: .7em; letter-spacing: .14em; text-transform: uppercase; color: #8fd8e0; }
+.q-grid label.wide { grid-column: span 2; }
+.q-grid label b { color: #e8feff; letter-spacing: .04em; text-transform: none; }
+.q-grid select {
+  font: inherit; font-size: 1.25em; letter-spacing: 0; text-transform: none; color: #e8feff;
+  background: rgba(25, 240, 255, .06); border: 1px solid rgba(25, 240, 255, .45); padding: 5px 6px; outline: none;
+}
+.q-grid select:focus { border-color: var(--cy); box-shadow: 0 0 8px rgba(25, 240, 255, .4); }
+.q-grid select option { background: #021014; }
+.q-grid input[type=range] { accent-color: var(--cy); width: 100%; }
+#q-stream {
+  margin-top: 12px; width: 100%; padding: 9px; font: inherit; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; cursor: pointer;
+  background: var(--cy); color: #001417; border: none;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+#q-stream.stop { background: rgba(255, 77, 94, .2); color: #ff6b7a; border: 1px solid rgba(255, 77, 94, .6); }

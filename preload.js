@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('conchilla', {
   toOverlay: (msg) => ipcRenderer.send('to-overlay', msg),
   onOverlayMessage: on('overlay:message'),
   openChat: () => ipcRenderer.send('chat:open'),
+  openQuick: () => ipcRenderer.send('quick:open'),
+  onQuickHotkey: on('quick:hotkey'),
   overlayMoveMode: (on) => ipcRenderer.send('overlay:move-mode', on),
 
   // overlay window side

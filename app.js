@@ -51,7 +51,9 @@ function keyFromEvent(e) {
   return [...mods, key].join('+');
 }
 
-const prettyKey = (acc) => (acc || 'none').replace('Capslock', 'Caps Lock').replace(/\+/g, ' + ');
+const TAP_NAMES = { RShift: 'Right Shift', RCtrl: 'Right Ctrl', LShift: 'Left Shift', LCtrl: 'Left Ctrl' };
+const TAP_CODES = { ShiftRight: 'RShift', ControlRight: 'RCtrl', ShiftLeft: 'LShift', ControlLeft: 'LCtrl' };
+const prettyKey = (acc) => TAP_NAMES[acc] || (acc || 'none').replace('Capslock', 'Caps Lock').replace(/\+/g, ' + ');
 const matchesKey = (e, acc) => !!acc && keyFromEvent(e) === acc;
 
 function initHotkeys() {
@@ -59,27 +61,43 @@ function initHotkeys() {
     b.textContent = prettyKey(settings.hotkeys[b.dataset.hotkey]);
   });
   render();
-  let recording = null;
+  let recording = null, lone = null;
+  const finish = async (b, acc) => {
+    recording = null; lone = null;
+    b.classList.remove('recording');
+    if (acc) await save({ hotkeys: { [b.dataset.hotkey]: acc } });
+    api.pauseHotkeys(false);
+    render();
+    refreshChatHints();
+  };
   document.querySelectorAll('[data-hotkey]').forEach((b) => b.addEventListener('click', () => {
     if (recording) recording.classList.remove('recording');
-    recording = b;
+    recording = b; lone = null;
     b.classList.add('recording');
     b.textContent = 'press a key… (Esc = cancel)';
     api.pauseHotkeys(true);
   }));
-  window.addEventListener('keydown', async (e) => {
+  // one-click choices for the chat key
+  document.querySelectorAll('[data-chat-preset]').forEach((b) => b.addEventListener('click', async () => {
+    await save({ hotkeys: { chat: b.dataset.chatPreset } });
+    api.pauseHotkeys(false);
+    render(); refreshChatHints();
+  }));
+  window.addEventListener('keydown', (e) => {
     if (!recording) return;
     e.preventDefault(); e.stopPropagation();
-    if (['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'].includes(e.code)) return;
-    const b = recording; recording = null;
-    b.classList.remove('recording');
-    if (e.code !== 'Escape') {
-      const acc = keyFromEvent(e);
-      if (acc) await save({ hotkeys: { [b.dataset.hotkey]: acc } });
+    if (['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'].includes(e.code)) {
+      lone = e.code;            // maybe a tap of just this key (only allowed for the chat key)
+      return;
     }
-    api.pauseHotkeys(false);
-    render();
-    refreshChatHints();
+    lone = null;
+    finish(recording, e.code === 'Escape' ? null : keyFromEvent(e));
+  }, true);
+  window.addEventListener('keyup', (e) => {
+    if (!recording || !lone || e.code !== lone) return;
+    e.preventDefault();
+    if (recording.dataset.hotkey === 'chat' && TAP_CODES[e.code]) finish(recording, TAP_CODES[e.code]);
+    lone = null;
   }, true);
   const showErrors = (errs) => {
     $('hotkey-error').textContent = errs?.length
@@ -212,6 +230,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   initProfile();
   initHotkeys();
   Watch.init();
+  api.onQuickHotkey(() => {
+    if (Room.role === 'host') { Room.pushQuick(); api.openQuick(); }
+    else if (currentView() === 'watch') Watch.showControls();
+  });
   refreshChatHints();
   $('open-settings').onclick = () => { initSettings(); showView('settings'); };
   document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => {

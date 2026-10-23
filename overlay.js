@@ -116,16 +116,66 @@ $('compose-form').addEventListener('submit', (e) => {
 $('compose').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { e.preventDefault(); close(false); }
 });
-window.addEventListener('blur', () => close(true));   // clicked back into the game
+window.addEventListener('blur', () => { close(true); closeQuick(); });   // clicked back into the game
 
-api.onOverlayOpen(open);
-api.onOverlayClose(() => close(true));
+// ---------- F8 quick stream menu (host) ----------
+
+let quickState = null;
+function renderQuick() {
+  const st = quickState;
+  if (!st) return;
+  document.querySelectorAll('[data-q]').forEach((el) => {
+    const key = el.dataset.q;
+    if (el.tagName === 'SELECT') {
+      const sig = JSON.stringify(st.options[key]);
+      if (el._sig !== sig) {
+        el.innerHTML = st.options[key].map((o) => `<option value="${esc(o.v)}" ${o.d ? 'disabled' : ''}>${esc(o.l)}</option>`).join('');
+        el._sig = sig;
+      }
+    }
+    if (document.activeElement !== el) el.value = st.values[key];
+  });
+  const b = Number(document.querySelector('[data-q="bitrate"]').value);
+  $('q-bitrate-label').textContent = b > 0 ? `${b} Mbps` : `Auto (${st.autoMbps} Mbps)`;
+  $('q-status').innerHTML = st.streaming
+    ? `<b class="live">● LIVE</b> ${esc(st.sending)} · ${st.watchers} watching${st.source ? ` · ${esc(st.source)}` : ''}`
+    : `Not streaming${st.source ? ` · ready to share ${esc(st.source)}` : ''}`;
+  $('q-stream').textContent = st.streaming ? '■ Stop streaming' : '▶ Start streaming';
+  $('q-stream').classList.toggle('stop', st.streaming);
+}
+
+document.querySelectorAll('[data-q]').forEach((el) => {
+  el.addEventListener('change', () => api.fromOverlay({ type: 'quick-set', key: el.dataset.q, value: el.value }));
+  if (el.type === 'range') el.addEventListener('input', () => {
+    const v = Number(el.value);
+    $('q-bitrate-label').textContent = v > 0 ? `${v} Mbps` : `Auto (${quickState?.autoMbps} Mbps)`;
+  });
+});
+$('q-stream').addEventListener('click', () => api.fromOverlay({ type: 'quick-set', key: 'stream' }));
+$('quick').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); closeQuick(); } });
+
+function openQuick() {
+  renderQuick();
+  $('quick').hidden = false;
+  document.body.classList.add('open');
+  setTimeout(() => document.querySelector('[data-q="resolution"]').focus(), 30);
+}
+function closeQuick() {
+  if ($('quick').hidden) return;
+  $('quick').hidden = true;
+  document.body.classList.remove('open');
+  api.overlayClosed();
+}
+
+api.onOverlayOpen((kind) => (kind === 'quick' ? openQuick() : open()));
+api.onOverlayClose(() => { close(true); closeQuick(); });
 api.onOverlaySettings(applySettings);
 api.onMoveMode((on) => { $('move-frame').hidden = !on; document.body.classList.toggle('moving', on); });
 
 api.overlayEvents((ev) => {
   if (ev.type === 'me') { me = ev.me; renderMe(); }
   if (ev.type === 'history') { history = ev.list || []; renderHistory(); }
+  if (ev.type === 'quick-state') { quickState = ev.state; if (!$('quick').hidden) renderQuick(); }
   if (ev.type === 'chat') {
     history.push(ev.msg);
     if (history.length > 50) history.shift();

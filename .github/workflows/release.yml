@@ -25,11 +25,13 @@ jobs:
 
       # The app-only sound recorder (Windows process-loopback capture)
       - uses: ilammy/msvc-dev-cmd@v1
-      - name: Build conchilla-audio.exe
+      - name: Build conchilla-audio.exe and conchilla-keys.exe
         shell: cmd
         run: |
           mkdir native\bin
           cl /nologo /O2 /EHsc /MT /std:c++17 /DUNICODE /D_UNICODE native\conchilla-audio.cpp /Fe:native\bin\conchilla-audio.exe /Fo:%RUNNER_TEMP%\ ole32.lib user32.lib
+          if errorlevel 1 exit /b 1
+          cl /nologo /O2 /EHsc /MT /std:c++17 /DUNICODE /D_UNICODE native\conchilla-keys.cpp /Fe:native\bin\conchilla-keys.exe /Fo:%RUNNER_TEMP%\ user32.lib
           if errorlevel 1 exit /b 1
       - name: Check conchilla-audio.exe runs
         shell: pwsh
@@ -37,6 +39,14 @@ jobs:
           $p = Start-Process native/bin/conchilla-audio.exe -NoNewWindow -PassThru -Wait -RedirectStandardError "$env:RUNNER_TEMP/usage.txt"
           if ($p.ExitCode -ne 2) { Write-Output "::error title=Audio helper broken::exit $($p.ExitCode)"; exit 1 }
           Get-Content "$env:RUNNER_TEMP/usage.txt"
+          $k = Start-Process native/bin/conchilla-keys.exe -NoNewWindow -PassThru -Wait
+          if ($k.ExitCode -ne 2) { Write-Output "::error title=Keys helper broken::exit $($k.ExitCode)"; exit 1 }
+          # the keyboard hook must install and keep running
+          $k = Start-Process native/bin/conchilla-keys.exe -ArgumentList "RShift" -NoNewWindow -PassThru -RedirectStandardError "$env:RUNNER_TEMP/keys.txt"
+          Start-Sleep -Seconds 3
+          if ($k.HasExited) { Write-Output "::error title=Keyboard hook failed::$(Get-Content "$env:RUNNER_TEMP/keys.txt" -Raw)"; exit 1 }
+          Stop-Process -Id $k.Id -Force
+          Write-Host "keys helper: $(Get-Content "$env:RUNNER_TEMP/keys.txt" -Raw)"
           # Try a real capture of this shell's own audio (the build machine may have no sound device: info only)
           $q = Start-Process native/bin/conchilla-audio.exe -ArgumentList "exclude", "$PID" -NoNewWindow -PassThru -RedirectStandardError "$env:RUNNER_TEMP/try.txt" -RedirectStandardOutput "$env:RUNNER_TEMP/pcm.raw"
           Start-Sleep -Seconds 3
@@ -68,6 +78,9 @@ jobs:
           $out = node scripts/verify-asar.js dist/win-unpacked/resources/app.asar 2>&1
           Write-Host ($out -join "`n")
           if ($LASTEXITCODE -ne 0) { Write-Output "::error title=Packed app is broken::$($out -join ' || ')"; exit 1 }
+          if (-not (Test-Path dist/win-unpacked/resources/bin/conchilla-keys.exe)) {
+            Write-Output "::error title=Missing keys helper::conchilla-keys.exe not packed"; exit 1
+          }
           if (-not (Test-Path dist/win-unpacked/resources/bin/conchilla-audio.exe)) {
             Write-Output "::error title=Missing audio helper::conchilla-audio.exe not packed"; exit 1
           }

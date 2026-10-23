@@ -847,12 +847,44 @@ const Room = (() => {
     updateStreamButton();
   }
 
+  // ---------- F8 quick menu (shown in the overlay, over the game) ----------
+  function quickState() {
+    const opts = (id) => [...$(id).options].map((o) => ({ v: o.value, l: o.textContent, d: o.disabled }));
+    const p = plannedConfig();
+    const ids = ['resolution', 'fps', 'content', 'codec', 'soundfrom', 'audio'];
+    return {
+      streaming,
+      values: { ...Object.fromEntries(ids.map((k) => [k, $(`q-${k}`).value])), bitrate: settings.host.bitrate },
+      options: Object.fromEntries(ids.map((k) => [k, opts(`q-${k}`)])),
+      autoMbps: p.mbps,
+      sending: streaming ? `${cfg.w}×${cfg.h} · ${cfg.fps} fps · ${cfg.mbps} Mbps` : 'not streaming',
+      watchers: [...members.values()].filter((m) => m.watching).length,
+      source: sources.find((x) => x.id === settings.host.sourceId)?.name || '',
+    };
+  }
+  function pushQuick() { if (role === 'host') api.toOverlay({ type: 'quick-state', state: quickState() }); }
+  function quickSet(key, value) {
+    if (role !== 'host') return;
+    if (key === 'stream') $('stream-toggle').click();
+    else {
+      const el = $(`q-${key}`);
+      if (!el) return;
+      el.value = value;
+      if (key === 'bitrate') el.dispatchEvent(new Event('input'));
+      el.dispatchEvent(new Event('change'));
+    }
+    setTimeout(pushQuick, 300);
+    setTimeout(pushQuick, 1500);
+  }
+  api.onOverlayMessage((m) => { if (m.type === 'quick-set') quickSet(m.key, m.value); });
+  setInterval(() => { if (role === 'host') pushQuick(); }, 2000);
+
   $('lobby-leave').onclick = () => leave();
   $('rewatch').onclick = () => setWatching(true);
   window.addEventListener('beforeunload', () => { if (role === 'host') broadcast({ t: 'closing' }); });
 
   return {
-    host, join, leave, sendChat, setWatching,
+    host, join, leave, sendChat, setWatching, quickState, pushQuick,
     get role() { return role; }, get me() { return me; },
     _debug: () => ({ role, code, members: [...members.keys()], streaming, locked, roster, cfg }),
   };

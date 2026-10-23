@@ -235,3 +235,6 @@ body.idle[data-view="watch"] { cursor: none; }
   border: 1px solid rgba(25, 240, 255, .15); background: rgba(25, 240, 255, .03); }
 .tips b { color: var(--cy); font-weight: 600; }
 .tips .key { font-family: var(--mono); padding: 0 6px; border: 1px solid var(--line); }
+
+.preset-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 0 2px; }
+.preset-row button { text-transform: none; font-family: var(--mono); }

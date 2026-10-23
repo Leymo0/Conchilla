@@ -25,7 +25,8 @@ const DEFAULT_SETTINGS = {
   face: 'cat',
   color: 'cyan',           // preferred colour; the host gives you another one if it's taken
   clientId: null,          // lets the host recognise you after a crash / reconnect
-  hotkeys: { chat: 'Capslock', stats: 'F7', fullscreen: 'F11' },
+  hotkeys: { chat: '\\', quick: 'F8', stats: 'F7', fullscreen: 'F11' },   // chat: '\\' (the key above Enter)
+  hotkeysVersion: 2,
   overlay: {
     pinned: true,          // stay on top of games / other programs
     corner: 'top-right',   // where the chat sits
@@ -63,6 +64,12 @@ function loadSettings() {
   let saved = {};
   try { saved = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch { /* first run */ }
   const s = merge(DEFAULT_SETTINGS, saved);
+  // 0.3: the chat key moved from Caps Lock to \ (only if it was never changed)
+  if ((saved.hotkeysVersion || 1) < 2) {
+    if (saved.hotkeys?.chat === 'Capslock') s.hotkeys.chat = DEFAULT_SETTINGS.hotkeys.chat;
+    s.hotkeysVersion = 2;
+    try { fs.writeFileSync(settingsFile(), JSON.stringify({ ...s }, null, 2)); } catch { /* fine */ }
+  }
   if (!s.clientId) {
     s.clientId = require('crypto').randomUUID();
     try { fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2)); } catch { /* fine */ }
@@ -167,7 +174,8 @@ function placeOverlay() {
 
 let chatOpen = false;
 
-function openChat() {
+// kind: 'chat' (type a message) or 'quick' (host's F8 stream menu)
+function openChat(kind = 'chat') {
   const o = createOverlay();
   if (chatOpen) { closeChat(false); return; }   // second press closes it again (draft is kept)
   chatOpen = true;
@@ -177,7 +185,7 @@ function openChat() {
   o.showInactive();
   o.focus();
   o.webContents.focus();
-  o.webContents.send('overlay:open');
+  o.webContents.send('overlay:open', kind);
 }
 
 function closeChat(fromOverlay = true) {
@@ -191,7 +199,8 @@ function closeChat(fromOverlay = true) {
 }
 
 ipcMain.on('overlay:closed', () => closeChat(true));
-ipcMain.on('chat:open', () => openChat());
+ipcMain.on('chat:open', () => openChat('chat'));
+ipcMain.on('quick:open', () => openChat('quick'));
 ipcMain.on('overlay:show', () => createOverlay());
 ipcMain.on('overlay:hide', () => { if (overlay) overlay.destroy(); overlay = null; chatOpen = false; });
 
@@ -232,20 +241,65 @@ ipcMain.handle('displays', () => screen.getAllDisplays().map((d, i) => ({
 // ---------------------------------------------------------------------------
 
 let hotkeyErrors = [];
+// A lone modifier tap (Right Shift…) can't be a normal Windows hotkey: native/conchilla-keys.exe
+// watches the keyboard for it instead (without blocking the key).
+const TAP_KEYS = ['RShift', 'RCtrl', 'LShift', 'LCtrl'];
+const KEYS_HELPER = app.isPackaged
+  ? path.join(process.resourcesPath, 'bin', 'conchilla-keys.exe')
+  : path.join(__dirname, 'native', 'bin', 'conchilla-keys.exe');
+let keysProc = null;
+
+function stopKeysHelper() {
+  const p = keysProc;
+  keysProc = null;
+  if (!p) return;
+  try { p.stdin.end(); } catch { /* gone */ }
+  setTimeout(() => { try { p.kill(); } catch { /* gone */ } }, 500);
+}
+
+function startKeysHelper(key) {
+  if (process.platform !== 'win32' || !fs.existsSync(KEYS_HELPER)) { hotkeyErrors.push(key); return; }
+  const p = spawn(KEYS_HELPER, [key], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  keysProc = p;
+  let buf = '';
+  p.stdout.on('data', (d) => {
+    buf += d.toString();
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    if (keysProc === p && lines.some((l) => l.startsWith('TAP '))) openChat('chat');
+  });
+  p.stderr.on('data', (d) => { if (/ERR/.test(d.toString())) updater.updateLog('keys helper', d.toString().trim()); });
+  p.on('exit', () => { if (keysProc === p) keysProc = null; });
+  p.on('error', (err) => { updater.updateLog('keys helper', err.message); hotkeyErrors.push(key); });
+}
+
 function registerHotkeys() {
   globalShortcut.unregisterAll();
+  stopKeysHelper();
   hotkeyErrors = [];
   const { hotkeys } = loadSettings();
-  if (hotkeys.chat) {
+  if (TAP_KEYS.includes(hotkeys.chat)) {
+    startKeysHelper(hotkeys.chat);
+  } else if (hotkeys.chat) {
     try {
-      if (!globalShortcut.register(hotkeys.chat, openChat)) hotkeyErrors.push(hotkeys.chat);
+      if (!globalShortcut.register(hotkeys.chat, () => openChat('chat'))) hotkeyErrors.push(hotkeys.chat);
     } catch { hotkeyErrors.push(hotkeys.chat); }
+  }
+  // F8: the page decides (host → quick stream menu over the game, viewer → watch controls)
+  if (hotkeys.quick) {
+    try {
+      const fire = () => { if (chatOpen) closeChat(false); else win?.webContents.send('quick:hotkey'); };
+      if (!globalShortcut.register(hotkeys.quick, fire)) hotkeyErrors.push(hotkeys.quick);
+    } catch { hotkeyErrors.push(hotkeys.quick); }
   }
   win?.webContents.send('hotkeys:status', hotkeyErrors);
 }
 ipcMain.handle('hotkeys:status', () => hotkeyErrors);
 // While recording a new key in Settings, the old one must not fire
-ipcMain.on('hotkeys:pause', (_e, paused) => (paused ? globalShortcut.unregisterAll() : registerHotkeys()));
+ipcMain.on('hotkeys:pause', (_e, paused) => {
+  if (paused) { globalShortcut.unregisterAll(); stopKeysHelper(); } else registerHotkeys();
+});
+app.on('will-quit', stopKeysHelper);
 
 // ---------------------------------------------------------------------------
 // Updates (GitHub releases of Leymo0/Conchilla)

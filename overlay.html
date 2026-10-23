@@ -19,6 +19,20 @@
         </div>
       </form>
     </div>
+    <div id="quick" hidden>
+      <div class="q-head"><span class="dot"></span>STREAM <b>QUICK MENU</b><span class="hint">Esc / F8 closes</span></div>
+      <div id="q-status" class="q-status"></div>
+      <div class="q-grid">
+        <label>Resolution<select data-q="resolution"></select></label>
+        <label>Frame rate<select data-q="fps"></select></label>
+        <label class="wide">Bitrate <b id="q-bitrate-label"></b><input type="range" data-q="bitrate" min="0" max="50" step="0.5"></label>
+        <label>Content<select data-q="content"></select></label>
+        <label>Codec<select data-q="codec"></select></label>
+        <label class="wide">Sound from<select data-q="soundfrom"></select></label>
+        <label class="wide">Sound<select data-q="audio"></select></label>
+      </div>
+      <button id="q-stream" type="button"></button>
+    </div>
     <div id="move-frame" hidden><div>DRAG ME<br><small>then click “Done moving” in Conchilla</small></div></div>
   </div>
 <script src="faces.js"></script>
