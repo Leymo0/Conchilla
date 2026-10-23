@@ -140,69 +140,25 @@ const Watch = (() => {
       `delay ≈ ${Math.round(delay)} ms (buffer ${s.bufferMs ?? '–'} ms)`,
       `loss ${s.lossPct != null ? s.lossPct.toFixed(1) : '0.0'}% · freezes ${s.freezes ?? 0} · dropped ${s.dropped ?? 0}`,
     ];
-    if (crop.t || crop.b || crop.l || crop.r) rows.push(`cutting black bars: ${[['top', crop.t], ['bottom', crop.b], ['left', crop.l], ['right', crop.r]].filter(([, x]) => x).map(([n, x]) => `${n} ${Math.round(x * 100)}%`).join(', ')}`);
     el.innerHTML = rows.map((r) => `<div>${r}</div>`).join('') + `<div class="muted">${escapeHtml(prettyKey(settings.hotkeys.stats))} hides this</div>`;
   }
 
   // ---------------------------------------------------------------- crop / zoom
-
-  // ---------------------------------------------------------------- black bars inside the picture
-  // Some pictures arrive with bars baked in (a 2.39:1 movie, a game running 16:9 on an ultrawide,
-  // a letterboxed capture). We spot the black edges and treat them as cropped, so Fit/Fill/Zoom
-  // work on the real picture.
-  let crop = { t: 0, b: 0, l: 0, r: 0 };
-  let candidate = null, candidateHits = 0;
-  const probe = document.createElement('canvas');
-
-  function detectBars() {
-    if (!video.videoWidth || video.readyState < 2) return;
-    if (v().autoCrop === false) { if (crop.t || crop.b || crop.l || crop.r) { crop = { t: 0, b: 0, l: 0, r: 0 }; layout(); } return; }
-    const w = 192, h = Math.max(8, Math.round((192 * video.videoHeight) / video.videoWidth));
-    probe.width = w; probe.height = h;
-    const g = probe.getContext('2d', { willReadFrequently: true });
-    g.drawImage(video, 0, 0, w, h);
-    const d = g.getImageData(0, 0, w, h).data;
-    const lum = (x, y) => { const i = (y * w + x) * 4; return d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11; };
-    const dark = (vals) => { let max = 0, sum = 0; for (const l of vals) { sum += l; if (l > max) max = l; } return max < 40 && sum / vals.length < 14; };
-    const row = (y) => dark(Array.from({ length: w }, (_, x) => lum(x, y)));
-    let t = 0; while (t < h * 0.4 && row(t)) t++;
-    let b = 0; while (b < h * 0.4 && row(h - 1 - b)) b++;
-    if (t + b >= h * 0.75) return;                       // fade to black / loading screen: keep what we had
-    const col = (x) => dark(Array.from({ length: h - t - b }, (_, k) => lum(x, t + k)));
-    let l = 0; while (l < w * 0.4 && col(l)) l++;
-    let r = 0; while (r < w * 0.4 && col(w - 1 - r)) r++;
-    const snap = (px, total) => (px / total < 0.015 ? 0 : px / total);   // ignore hairlines
-    const next = { t: snap(t, h), b: snap(b, h), l: snap(l, w), r: snap(r, w) };
-    const same = (a, c) => !!a && !!c && ['t', 'b', 'l', 'r'].every((k) => Math.abs(a[k] - c[k]) < 0.015);
-    if (same(next, crop)) { candidate = null; return; }
-    // Bars getting SMALLER (picture appeared there): follow right away, never hide picture.
-    // Bars getting BIGGER: only after it's stayed that way for ~4 s (dark scenes aren't bars).
-    const shrinking = ['t', 'b', 'l', 'r'].every((k) => next[k] <= crop[k] + 0.005);
-    if (same(next, candidate)) candidateHits++; else { candidate = next; candidateHits = 1; }
-    if (shrinking || candidateHits >= 3) { crop = next; candidate = null; layout(); }
-  }
-  setInterval(detectBars, 1500);
 
   // zoom 0 = whole picture (black bars), 100 = bars gone (fills the window), 200 = 2× closer still.
   // If the shapes already match, 100 = 2× closer.
   function layout() {
     const W = stage.clientWidth, H = stage.clientHeight;
     const vw = video.videoWidth || 16, vh = video.videoHeight || 9;
-    const c = v().autoCrop === false ? { t: 0, b: 0, l: 0, r: 0 } : crop;
-    const cw = vw * (1 - c.l - c.r), ch = vh * (1 - c.t - c.b);      // the real picture
-    const fit = Math.min(W / cw, H / ch), cover = Math.max(W / cw, H / ch);
+    const fit = Math.min(W / vw, H / vh), cover = Math.max(W / vw, H / vh);
     const full = cover / fit > 1.03 ? cover : fit * 2;
     // 0–100%: whole picture → fills the window; 100–200%: up to 2× closer than that
     const z = v().zoom;
     const scale = z <= 100 ? fit + (full - fit) * (z / 100) : full * (1 + (z - 100) / 100);
-    const dw = cw * scale, dh = ch * scale;
+    const dw = vw * scale, dh = vh * scale;
     const left = dw > W ? (W - dw) * (v().panX / 100) : (W - dw) / 2;
     const top = dh > H ? (H - dh) * (v().panY / 100) : (H - dh) / 2;
-    Object.assign(video.style, {
-      width: `${vw * scale}px`, height: `${vh * scale}px`,
-      left: `${left - vw * c.l * scale}px`, top: `${top - vh * c.t * scale}px`,
-      clipPath: `inset(${c.t * 100}% ${c.r * 100}% ${c.b * 100}% ${c.l * 100}%)`,
-    });
+    Object.assign(video.style, { width: `${dw}px`, height: `${dh}px`, left: `${left}px`, top: `${top}px` });
     stage.classList.toggle('pannable', dw > W + 1 || dh > H + 1);
     $('w-zoom').value = v().zoom; $('w-zoom-val').textContent = `${Math.round(v().zoom)}%`;
     $('w-pany').value = v().panY; $('w-pany-val').textContent = `${Math.round(v().panY)}%`;
@@ -237,13 +193,10 @@ const Watch = (() => {
     setView(patch);
   });
   window.addEventListener('mouseup', () => { drag = null; stage.classList.remove('dragging'); });
-  // scroll wheel to zoom, keeping the spot under the cursor roughly in place
+  // scroll wheel: zoom only (the position / Vertical slider stays where you put it)
   stage.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const r = stage.getBoundingClientRect();
-    const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
-    const zoom = v().zoom - Math.sign(e.deltaY) * 5;
-    setView({ zoom, panX: v().panX + (fx - 0.5) * 8 * Math.sign(-e.deltaY), panY: v().panY + (fy - 0.5) * 8 * Math.sign(-e.deltaY) });
+    setView({ zoom: v().zoom - Math.sign(e.deltaY) * 5 });
   }, { passive: false });
   stage.addEventListener('dblclick', () => setFullscreen(!fullscreen));
 
@@ -280,8 +233,7 @@ const Watch = (() => {
     $('w-pany').oninput = (e) => setView({ panY: Number(e.target.value) });
     $('w-fill').onclick = () => setView({ zoom: 100, panX: 50, panY: 50 });
     $('w-reset').onclick = () => setView({ zoom: 0, panX: 50, panY: 50 });
-    $('w-autocrop').checked = vs().autoCrop !== false;
-    $('w-autocrop').onchange = (e) => { settings.viewer.autoCrop = e.target.checked; save({ viewer: { autoCrop: e.target.checked } }); detectBars(); layout(); };
+    $('w-center').onclick = () => setView({ panX: 50, panY: 50 });
     const onBuffer = (e) => setBuffer(Number(e.target.value), false);
     const saveBuffer = (e) => setBuffer(Number(e.target.value), true);
     for (const id of ['w-buffer', 'lobby-buffer']) { $(id).oninput = onBuffer; $(id).onchange = saveBuffer; }

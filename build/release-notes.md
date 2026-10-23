@@ -1,4 +1,5 @@
-**Conchilla 0.3.3**: more zoom
+**Conchilla 0.3.4**: tidier zoom controls
 
-- **Zoom / crop now goes to 200%.** 100% is still "fills the screen" (the *Fill* button). From 100–200% you can zoom up to twice as close as that, for when bars are still showing or you just want it bigger. The scroll wheel goes to 200% too.
-- Drag the picture (or use *Vertical*) to choose which part you see while zoomed.
+- **Scroll wheel only zooms** now. It no longer moves the picture up/down or sideways.
+- New **Center** button: puts the picture back in the middle (both directions) without changing your zoom.
+- Removed the "Cut bars" tickbox. Zoom (up to 200%) does the job.
