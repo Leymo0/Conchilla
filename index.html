@@ -153,6 +153,14 @@
         <label class="field span2"><span>Bitrate <b id="q-bitrate-val"></b></span>
           <input type="range" id="q-bitrate" min="0" max="50" step="0.5">
         </label>
+        <label class="field span2"><span>Sound from</span>
+          <select id="q-soundfrom">
+            <option value="auto">Auto — the shared app, or everything except Discord</option>
+            <option value="app">Only the shared app (window sharing)</option>
+            <option value="nodiscord">Everything except Discord</option>
+            <option value="pc">Whole PC (everything, Discord too)</option>
+          </select>
+        </label>
         <label class="field"><span>Sound</span>
           <select id="q-audio"><option value="0">Off</option><option value="128">On · 128 kbps</option><option value="256">On · 256 kbps</option><option value="510">On · 510 kbps (max)</option></select>
         </label>
@@ -242,6 +250,7 @@
 <script src="faces.js"></script>
 <script src="stream.js"></script>
 <script src="app.js"></script>
+<script src="appaudio.js"></script>
 <script src="room.js"></script>
 <script src="watch.js"></script>
 </body>

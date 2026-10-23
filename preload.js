@@ -32,6 +32,11 @@ contextBridge.exposeInMainWorld('conchilla', {
   onHotkeyStatus: on('hotkeys:status'),
   pauseHotkeys: (paused) => ipcRenderer.send('hotkeys:pause', paused),
 
+  platform: process.platform,
+  appAudioStart: (req) => ipcRenderer.invoke('appaudio:start', req),
+  appAudioStop: () => ipcRenderer.send('appaudio:stop'),
+  onAppAudioPcm: on('appaudio:pcm'),
+
   runUpdate: () => ipcRenderer.invoke('update:run'),
   pendingUpdate: () => ipcRenderer.invoke('update:pending'),
   onUpdateProgress: on('update:progress'),

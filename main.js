@@ -7,7 +7,8 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, session, globalShortcut, s
 const fs = require('fs');
 const path = require('path');
 const updater = require('./updater');
-const focus = require('./focus');
+const win32 = require('./win32');
+const { spawn } = require('child_process');
 
 // Separate profile folder (testing several copies on one PC)
 if (process.env.CONCHILLA_PROFILE) app.setPath('userData', process.env.CONCHILLA_PROFILE);
@@ -170,7 +171,7 @@ function openChat() {
   const o = createOverlay();
   if (chatOpen) { closeChat(false); return; }   // second press closes it again (draft is kept)
   chatOpen = true;
-  focus.remember();                             // the game (or whatever had the keyboard)
+  win32.remember();                             // the game (or whatever had the keyboard)
   o.setIgnoreMouseEvents(false);
   o.setFocusable(true);
   o.showInactive();
@@ -186,7 +187,7 @@ function closeChat(fromOverlay = true) {
   overlay.setIgnoreMouseEvents(true);
   overlay.setFocusable(false);
   // Give the keyboard back to the game
-  if (!focus.restore()) overlay.blur();
+  if (!win32.restore()) overlay.blur();
 }
 
 ipcMain.on('overlay:closed', () => closeChat(true));
@@ -280,6 +281,65 @@ ipcMain.handle('update:pending', () => {
   return { from: justUpdatedFrom, to: app.getVersion() };
 });
 ipcMain.handle('app:version', () => app.getVersion());
+// ---------------------------------------------------------------------------
+// App-only sound: native/conchilla-audio.exe records one program's audio (include) or
+// everything except one program (exclude) and streams raw PCM to the host page.
+// ---------------------------------------------------------------------------
+
+const AUDIO_HELPER = app.isPackaged
+  ? path.join(process.resourcesPath, 'bin', 'conchilla-audio.exe')
+  : path.join(__dirname, 'native', 'bin', 'conchilla-audio.exe');
+let audioProc = null;
+
+function stopAppAudio() {
+  const p = audioProc;
+  audioProc = null;
+  if (!p) return;
+  try { p.stdin.end(); } catch { /* gone */ }
+  setTimeout(() => { try { p.kill(); } catch { /* gone */ } }, 500);
+}
+
+ipcMain.handle('appaudio:start', async (e, { mode, sourceId }) => {
+  stopAppAudio();
+  if (process.platform !== 'win32') return { ok: false, reason: 'windows-only' };
+  if (!fs.existsSync(AUDIO_HELPER)) return { ok: false, reason: 'helper missing' };
+  const pid = mode === 'include' ? win32.pidOfWindow(sourceId) : win32.discordPid();
+  if (!pid) return { ok: false, reason: mode === 'include' ? 'no-app' : 'no-discord' };
+
+  const p = spawn(AUDIO_HELPER, [mode, String(pid)], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  audioProc = p;
+  const sender = e.sender;
+  let leftover = Buffer.alloc(0);
+  p.stdout.on('data', (chunk) => {
+    if (audioProc !== p || sender.isDestroyed()) return;
+    // whole stereo frames only (4 bytes each)
+    let buf = leftover.length ? Buffer.concat([leftover, chunk]) : chunk;
+    const usable = buf.length - (buf.length % 4);
+    leftover = buf.subarray(usable);
+    if (usable) sender.send('appaudio:pcm', buf.subarray(0, usable));
+  });
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (res) => { if (!settled) { settled = true; resolve(res); } };
+    let errText = '';
+    p.stderr.on('data', (d) => {
+      const text = d.toString();
+      errText += text;
+      if (/READY/.test(text)) finish({ ok: true, pid });
+      const m = /ERR (\S+) (\S+)/.exec(text);
+      if (m) finish({ ok: false, reason: `${m[1]} ${m[2]}` });
+    });
+    p.on('error', (err) => finish({ ok: false, reason: err.message }));
+    p.on('exit', (code) => {
+      if (audioProc === p) audioProc = null;
+      finish({ ok: false, reason: `stopped (${code}) ${errText.trim()}` });
+    });
+    setTimeout(() => finish({ ok: false, reason: 'timeout' }), 8000);
+  }).then((res) => { if (!res.ok) { updater.updateLog('app audio failed', res.reason); if (audioProc === p) stopAppAudio(); } return res; });
+});
+ipcMain.on('appaudio:stop', () => stopAppAudio());
+app.on('will-quit', stopAppAudio);
+
 ipcMain.on('open:url', (_e, url) => { if (/^https:\/\/github\.com\/Leymo0\//.test(url)) shell.openExternal(url); });
 ipcMain.on('window:fullscreen', (_e, on) => win?.setFullScreen(on == null ? !win.isFullScreen() : !!on));
 

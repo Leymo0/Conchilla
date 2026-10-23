@@ -367,6 +367,7 @@ const Room = (() => {
         const kbps = Number(e.target.value);
         live({ audio: kbps > 0, audioKbps: kbps || settings.host.audioKbps }, before !== kbps > 0 ? 'recapture' : 'restart');
       };
+      $('q-soundfrom').onchange = (e) => live({ soundFrom: e.target.value }, 'recapture');
       $('q-max').onchange = (e) => { const v = Math.min(11, Math.max(1, Number(e.target.value) || 8)); e.target.value = v; live({ maxViewers: v }); };
       $('lock-joins').onchange = (e) => {
         locked = e.target.checked;
@@ -393,6 +394,7 @@ const Room = (() => {
     $('q-codec').value = h.codec;
     $('q-bitrate').value = h.bitrate;
     $('q-audio').value = h.audio ? String(h.audioKbps) : '0';
+    $('q-soundfrom').value = h.soundFrom || 'auto';
     $('q-max').value = h.maxViewers;
     updateStreamButton();
   }
@@ -430,23 +432,67 @@ const Room = (() => {
 
   // ---------- streaming ----------
 
+  const LOOPBACK_AUDIO = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 };
+
+  // Which sound to send: 'app' (only the shared program), 'nodiscord' (everything but
+  // Discord, so nobody hears their own voice back) or 'pc' (everything).
+  function soundMode() {
+    const h = settings.host;
+    if (!h.audio) return 'off';
+    const isWindow = String(h.sourceId || '').startsWith('window:');
+    let m = h.soundFrom || 'auto';
+    if (m === 'auto') m = isWindow ? 'app' : 'nodiscord';
+    if (m === 'app' && !isWindow) m = 'nodiscord';
+    if (api.platform !== 'win32') m = 'pc';
+    return m;
+  }
+
+  let soundNote = '';
   async function capture() {
     const h = settings.host;
-    await api.selectCapture({ sourceId: h.sourceId, audio: !!h.audio });
+    const mode = soundMode();
+    const native = mode === 'app' || mode === 'nodiscord';
+    if (!native) AppAudio.stop();
+    await api.selectCapture({ sourceId: h.sourceId, audio: mode === 'pc' });
     const s = await navigator.mediaDevices.getDisplayMedia({
       video: { frameRate: { ideal: h.fps, max: h.fps } },
-      audio: h.audio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 } : false,
+      audio: mode === 'pc' ? LOOPBACK_AUDIO : false,
     });
     const video = s.getVideoTracks()[0];
-    const native = video.getSettings();
-    const t = targetSize(native.width, native.height, h.resolution);
+    const size = video.getSettings();
+    const t = targetSize(size.width, size.height, h.resolution);
     video.contentHint = CONTENT[h.content]?.hint || 'motion';
     // scale at capture time (cheaper than encoding the full size and shrinking it)
     if (t.scale > 1) await video.applyConstraints({ width: { max: t.w }, height: { max: t.h }, frameRate: { max: h.fps } }).catch(() => {});
-    const a = s.getAudioTracks()[0];
-    if (a) a.contentHint = 'music';
     video.onended = () => { if (stream === s) stopStream('The shared window or screen was closed'); };
-    return { s, srcW: native.width, srcH: native.height };
+
+    soundNote = mode === 'off' ? 'no sound' : mode === 'pc' ? 'sound: whole PC' : '';
+    if (native) {
+      const r = await AppAudio.start(mode === 'app' ? 'include' : 'exclude', h.sourceId);
+      if (r.ok) {
+        s.addTrack(r.track);
+        soundNote = mode === 'app' ? 'sound: only the shared app' : 'sound: everything except Discord';
+      } else if (mode === 'nodiscord' && r.reason === 'no-discord') {
+        // Discord isn't running, so there's nothing to leave out: plain PC sound is the same thing
+        await addLoopback(s, h.sourceId);
+        soundNote = 'sound: whole PC (Discord isn\'t running)';
+      } else {
+        await addLoopback(s, h.sourceId);
+        soundNote = `sound: whole PC — app-only sound didn't work here (${r.reason})`;
+      }
+    }
+    return { s, srcW: size.width, srcH: size.height };
+  }
+
+  // Fallback: the whole PC's sound, through a second (audio-only) capture
+  async function addLoopback(s, sourceId) {
+    try {
+      await api.selectCapture({ sourceId, audio: true });
+      const extra = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: LOOPBACK_AUDIO });
+      extra.getVideoTracks().forEach((t) => t.stop());
+      const a = extra.getAudioTracks()[0];
+      if (a) { a.contentHint = 'music'; s.addTrack(a); }
+    } catch { /* no sound then */ }
   }
 
   async function startStream() {
@@ -464,7 +510,7 @@ const Room = (() => {
       $('host-preview').srcObject = stream;
       broadcast({ t: 'stream', on: true });
       for (const m of members.values()) if (m.watching) callMember(m);
-      system(`▶ Streaming ${cfg.w}×${cfg.h} at ${cfg.fps} fps`);
+      system(`▶ Streaming ${cfg.w}×${cfg.h} at ${cfg.fps} fps · ${soundNote}`);
     } catch (err) {
       modal("Couldn't start sharing", err.message || String(err));
     } finally {
@@ -480,6 +526,7 @@ const Room = (() => {
     for (const m of members.values()) hangUp(m);
     const s = stream; stream = null;
     s?.getTracks().forEach((t) => { t.onended = null; t.stop(); });
+    AppAudio.stop();
     $('host-preview').srcObject = null;
     broadcast({ t: 'stream', on: false, reason });
     system(`■ ${reason}`);
@@ -575,6 +622,7 @@ const Room = (() => {
       tune(m.call);
     }
     old?.getTracks().forEach((t) => { t.onended = null; t.stop(); });
+    system(`Now sharing ${sources.find((x) => x.id === settings.host.sourceId)?.name || 'a new source'} · ${soundNote}`);
     broadcastRoster();
   }
 
@@ -787,7 +835,7 @@ const Room = (() => {
     clearInterval(hbTimer); clearInterval(statsTimer); clearInterval(sourceTimer);
     clearTimeout(retryTimer); clearTimeout(connectTimer);
     Watch.detach();
-    if (streaming) { streaming = false; stream?.getTracks().forEach((t) => { t.onended = null; t.stop(); }); stream = null; }
+    if (streaming) { streaming = false; stream?.getTracks().forEach((t) => { t.onended = null; t.stop(); }); stream = null; AppAudio.stop(); }
     for (const m of members.values()) { hangUp(m); try { m.conn.close(); } catch { /* gone */ } }
     members.clear();
     try { conn?.close(); } catch { /* gone */ }

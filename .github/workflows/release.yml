@@ -23,6 +23,32 @@ jobs:
 
       - run: npm ci
 
+      # The app-only sound recorder (Windows process-loopback capture)
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build conchilla-audio.exe
+        shell: cmd
+        run: |
+          mkdir native\bin
+          cl /nologo /O2 /EHsc /MT /std:c++17 /DUNICODE /D_UNICODE native\conchilla-audio.cpp /Fe:native\bin\conchilla-audio.exe /Fo:%RUNNER_TEMP%\ ole32.lib user32.lib
+          if errorlevel 1 exit /b 1
+      - name: Check conchilla-audio.exe runs
+        shell: pwsh
+        run: |
+          $p = Start-Process native/bin/conchilla-audio.exe -NoNewWindow -PassThru -Wait -RedirectStandardError "$env:RUNNER_TEMP/usage.txt"
+          if ($p.ExitCode -ne 2) { Write-Output "::error title=Audio helper broken::exit $($p.ExitCode)"; exit 1 }
+          Get-Content "$env:RUNNER_TEMP/usage.txt"
+          # Try a real capture of this shell's own audio (the build machine may have no sound device: info only)
+          $q = Start-Process native/bin/conchilla-audio.exe -ArgumentList "exclude", "$PID" -NoNewWindow -PassThru -RedirectStandardError "$env:RUNNER_TEMP/try.txt" -RedirectStandardOutput "$env:RUNNER_TEMP/pcm.raw"
+          Start-Sleep -Seconds 3
+          if (-not $q.HasExited) { Stop-Process -Id $q.Id -Force }
+          Write-Host "capture attempt: $(Get-Content "$env:RUNNER_TEMP/try.txt" -Raw) bytes=$((Get-Item "$env:RUNNER_TEMP/pcm.raw").Length)"
+
+      - name: Check Windows process helpers
+        shell: pwsh
+        run: |
+          node -e "const w=require('./win32'); const l=w.processList(); console.log('processes:', l.length, 'example:', JSON.stringify(l.find(p=>/node/i.test(p.exe)))); if(l.length<5) process.exit(1); console.log('discord pid:', w.discordPid())"
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error title=Process list broken::"; exit 1 }
+
       - name: Build installer
         shell: pwsh
         run: |
@@ -42,6 +68,9 @@ jobs:
           $out = node scripts/verify-asar.js dist/win-unpacked/resources/app.asar 2>&1
           Write-Host ($out -join "`n")
           if ($LASTEXITCODE -ne 0) { Write-Output "::error title=Packed app is broken::$($out -join ' || ')"; exit 1 }
+          if (-not (Test-Path dist/win-unpacked/resources/bin/conchilla-audio.exe)) {
+            Write-Output "::error title=Missing audio helper::conchilla-audio.exe not packed"; exit 1
+          }
           if (-not (Test-Path dist/win-unpacked/resources/app.asar.unpacked/node_modules/koffi/build/koffi/win32_x64/koffi.node)) {
             Write-Output "::error title=Missing focus helper::koffi.node was not unpacked"; exit 1
           }
