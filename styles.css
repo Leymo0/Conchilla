@@ -100,7 +100,7 @@ input[type="checkbox"] { accent-color: var(--cy); width: 16px; height: 16px; }
 .status { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .status.ok { color: var(--good); } .status.warn { color: var(--warn); } .status.busy { color: var(--cy); }
 .room-chip { display: flex; align-items: center; gap: 10px; padding: 4px 4px 4px 14px; border: 1px solid var(--line); background: rgba(25, 240, 255, .05); }
-.room-chip b { font-family: var(--mono); font-size: 22px; letter-spacing: .25em; color: var(--cy); text-shadow: 0 0 12px var(--cy-glow); }
+.room-chip b { font-family: var(--mono); font-size: 17px; letter-spacing: .12em; color: var(--cy); text-shadow: 0 0 12px var(--cy-glow); }
 
 .update-status { font-size: 12px; } .update-status.ok { color: var(--good); } .update-status.warn { color: var(--warn); } .update-status.busy { color: var(--cy); }
 
@@ -134,7 +134,7 @@ input[type="checkbox"] { accent-color: var(--cy); width: 16px; height: 16px; }
 .choice-title { font-size: 26px; font-weight: 700; letter-spacing: .25em; color: var(--cy); text-shadow: 0 0 12px var(--cy-glow); }
 .choice-desc { color: var(--ink); opacity: .75; font-size: 13px; }
 .join-row { display: flex; gap: 10px; width: 100%; margin-top: 8px; }
-.code-input { flex: 1; font-family: var(--mono); font-size: 24px; letter-spacing: .4em; text-transform: uppercase; text-align: center; padding: 8px; }
+.code-input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 18px; letter-spacing: .12em; text-transform: uppercase; text-align: center; padding: 8px; }
 .menu-foot { display: flex; align-items: center; gap: 12px; margin-top: auto; flex-wrap: wrap; }
 
 /* ---------- settings ---------- */

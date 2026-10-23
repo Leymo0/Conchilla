@@ -129,9 +129,9 @@ const Room = (() => {
 
   function openRoom() {
     code = randomCode();
-    $('host-code').textContent = code;
+    showCode(false);
     peer = new Peer(ROOM_PREFIX + code, peerOptions());
-    peer.on('open', () => { setHostStatus('Room open', 'ok'); system(`Room ${code} is open — send the code to your friends`); });
+    peer.on('open', () => { setHostStatus('Room open', 'ok'); system('Room open — press Copy and send the code to your friends'); });
     peer.on('connection', onJoin);
     peer.on('disconnected', () => {
       // Only the "phone book" server dropped; people already in stay connected
@@ -146,6 +146,13 @@ const Room = (() => {
       }
       if (err.type !== 'peer-unavailable') setHostStatus(`Problem: ${err.type}`, 'warn');
     });
+  }
+
+  // The code is the room's key: hidden on screen (so it doesn't leak on stream), Copy still works
+  function showCode(visible) {
+    const el = $('host-code');
+    el.textContent = visible ? formatCode(code) : '••••-••••-••••-••••';
+    el.classList.toggle('hidden-code', !visible);
   }
 
   function setHostStatus(text, kind) {
@@ -389,7 +396,8 @@ const Room = (() => {
         if (u) { blocked.delete(u.dataset.unblock); renderHost(); }
       });
       $('stream-toggle').onclick = () => (streaming ? stopStream('The host stopped streaming') : startStream());
-      $('copy-code').onclick = () => { navigator.clipboard.writeText(code); $('copy-code').textContent = 'Copied'; setTimeout(() => { $('copy-code').textContent = 'Copy'; }, 1200); };
+      $('show-code').onclick = () => showCode($('host-code').classList.contains('hidden-code'));
+      $('copy-code').onclick = () => { navigator.clipboard.writeText(formatCode(code)); $('copy-code').textContent = 'Copied'; setTimeout(() => { $('copy-code').textContent = 'Copy'; }, 1200); };
       $('host-close').onclick = () => leave();
       $('host-chat-pop').onclick = () => { api.showOverlay(); setTimeout(syncOverlay, 300); api.openChat(); };
     }
@@ -653,7 +661,7 @@ const Room = (() => {
     peer.on('error', (err) => {
       if (err.type === 'peer-unavailable') {
         if (conn?.open || retries > 0) return;           // handled by the retry loop
-        fail(`No room with code ${code}. Check the code — or the host closed it.`);
+        fail('No room with that code. Check you pasted all of it — or the host closed the room.');
       } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
         if (!conn?.open && retries === 0) fail("Can't reach the lobby server. Check your internet and try again.");
       }
@@ -671,7 +679,7 @@ const Room = (() => {
     connectTimer = setTimeout(() => {
       if (c.open || leaving) return;
       if (retries > 0) { scheduleRetry(); return; }
-      fail(`Couldn't reach room ${code}. Check the code, or ask the host if the room is still open.`);
+      fail("Couldn't reach that room. Check the code, or ask the host if the room is still open.");
     }, 12000);
     c.on('open', () => {
       clearTimeout(connectTimer);
@@ -699,7 +707,7 @@ const Room = (() => {
           history = [];
           (d.history || []).forEach(addChat);
           showView('lobby');
-          $('lobby-code').textContent = code;
+          $('lobby-code').textContent = `${code.slice(0, 4)}-••••-••••-••••`;
           api.showOverlay();
           setTimeout(syncOverlay, 400);
           if (me.color !== settings.color) system(`${colorName(settings.color)} was taken, so you're ${colorName(me.color)} in this room`);

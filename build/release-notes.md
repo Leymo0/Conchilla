@@ -1,7 +1,7 @@
-**Conchilla 0.3.5**: security hardening
+**Conchilla 0.3.6**: unguessable room codes
 
-- **Nobody can pretend to be someone else in a room.** Each person's private device ID used to be visible to everyone in the room. Someone could copy it to take over a friend's spot (name, colour) by "reconnecting" as them. People now only see a random public ID.
-- **Colours from other people are checked.** Only real colour values are accepted.
-- **The app's windows can't be sent to a web page or open pop-ups.** They only ever show Conchilla's own screens.
+- **Room codes are now 16 characters** (like `K7QM-2XRP-9TWD-H4NC`) instead of 6, about a trillion times more combinations. Nobody can find your room by guessing codes, so nobody gets in, or sees the host's IP, unless you give them the code.
+- **The code is hidden on the host screen** (`••••-••••-…`) so it can't leak if the Conchilla window ends up on stream. Press 👁 to show it, or just press **Copy** and paste it to your friends.
+- The Join box accepts a pasted code with or without the dashes.
 
-Everyone should update. Hosts especially, since the ID fix is on the host's side.
+⚠ **Everyone needs to update.** Older versions can't join the new codes.

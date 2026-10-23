@@ -145,7 +145,9 @@ function initProfile() {
     if (b) { await save({ color: b.dataset.color }); renderProfile(); }
   });
   $('join-code').addEventListener('input', (e) => {
-    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // keep it tidy as XXXX-XXXX-…, whether typed or pasted (with or without dashes)
+    const raw = cleanCode(e.target.value).slice(0, CODE_LENGTH);
+    e.target.value = formatCode(raw);
   });
   $('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('join-btn').click(); });
 }
@@ -251,8 +253,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('join-btn').onclick = () => {
     const name = needName();
     if (!name) return;
-    const code = $('join-code').value.trim().toUpperCase();
-    if (code.length !== 6) { $('join-error').textContent = 'Room codes are 6 letters/numbers'; return; }
+    const code = cleanCode($('join-code').value);
+    if (code.length !== CODE_LENGTH) { $('join-error').textContent = 'Paste the full room code (16 letters/numbers, like K7QM-2XRP-9TWD-H4NC)'; return; }
     $('join-error').textContent = '';
     Room.join(name, code);
   };

@@ -4,7 +4,13 @@
 const ROOM_PREFIX = 'conchilla-room-';
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no 0/O or 1/I mix-ups
 
-function randomCode(length = 6) {
+// 16 characters (80 bits): far too many combinations to ever guess, so nobody can stumble into a
+// room (and see the host's IP) without being given the code. Shown as XXXX-XXXX-XXXX-XXXX.
+const CODE_LENGTH = 16;
+const formatCode = (c) => (c || '').match(/.{1,4}/g)?.join('-') || '';
+const cleanCode = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+function randomCode(length = CODE_LENGTH) {
   const bytes = crypto.getRandomValues(new Uint8Array(length));
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
 }

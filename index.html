@@ -55,7 +55,7 @@
           <span class="choice-title">JOIN</span>
           <span class="choice-desc">Got a code from the host? Put it in.</span>
           <div class="join-row">
-            <input id="join-code" class="code-input" maxlength="6" placeholder="ABC123" spellcheck="false" autocomplete="off">
+            <input id="join-code" class="code-input" maxlength="40" placeholder="Paste the code" spellcheck="false" autocomplete="off">
             <button id="join-btn" class="primary">Join</button>
           </div>
           <div id="join-error" class="error"></div>
@@ -125,7 +125,8 @@
     <button class="back" id="host-close">✕ Close room</button>
     <h1>HOST · LOBBY</h1>
     <div class="room-chip">
-      <span class="muted">CODE</span><b id="host-code">------</b>
+      <span class="muted">CODE</span><b id="host-code" class="hidden-code">••••-••••-••••-••••</b>
+      <button id="show-code" class="small" title="Show / hide the code (hidden so it doesn't end up on stream)">👁</button>
       <button id="copy-code" class="small">Copy</button>
     </div>
     <div id="host-status" class="status">Opening…</div>
@@ -196,7 +197,7 @@
   <header class="bar">
     <button class="back" id="lobby-leave">← Leave</button>
     <h1>LOBBY</h1>
-    <div class="room-chip"><span class="muted">ROOM</span><b id="lobby-code">------</b></div>
+    <div class="room-chip"><span class="muted">ROOM</span><b id="lobby-code">••••-••••-••••-••••</b></div>
     <div id="lobby-status" class="status">Connecting…</div>
   </header>
   <div class="lobby-grid">
