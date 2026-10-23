@@ -1,0 +1,86 @@
+{
+  "name": "conchilla",
+  "productName": "Conchilla",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Easy friend-group screen share with a neon in-game chat overlay",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "author": "Peri",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Leymo0/Conchilla.git"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "koffi": "^2.16.3",
+    "peerjs": "^1.5.5"
+  },
+  "devDependencies": {
+    "@electron/asar": "^4.3.1",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.peri.conchilla",
+    "productName": "Conchilla",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!build/icon.ico",
+      "!build/icon.svg",
+      "!README.md",
+      "!.github/**",
+      "!build/release-notes.md",
+      "!**/*.log",
+      "!scripts/**",
+      "!assets/faces-sheet.png",
+      "!node_modules/koffi/build/koffi/!(win32_x64)/**",
+      "!node_modules/koffi/src/**",
+      "!node_modules/koffi/doc/**",
+      "!node_modules/koffi/vendor/**"
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/build/koffi/win32_x64/*.node"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Conchilla",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "artifactName": "Conchilla-Setup-${version}.exe"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Leymo0",
+        "repo": "Conchilla",
+        "releaseType": "release"
+      }
+    ],
+    "releaseInfo": {
+      "releaseNotesFile": "build/release-notes.md"
+    }
+  }
+}

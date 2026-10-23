@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: mediastream:; connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:*">
+<title>Conchilla</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="scanlines"></div>
+
+<!-- ============================== CHARACTER MENU ============================== -->
+<section id="view-menu" class="view active">
+  <div class="menu">
+    <header class="menu-brand">
+      <img src="assets/icon.png" class="logo" alt="">
+      <div>
+        <div class="wordmark" data-text="CONCHILLA">CONCHILLA</div>
+        <div class="tagline">screen share · in-game chat · your people only</div>
+      </div>
+      <button id="open-settings" class="ghost icon-btn" title="Settings">⚙</button>
+    </header>
+
+    <div class="menu-grid">
+      <div class="panel cut">
+        <h2><span class="idx">01</span> Who are you?</h2>
+        <label class="field">
+          <span>Name</span>
+          <input id="me-name" maxlength="20" spellcheck="false" autocomplete="off" placeholder="Pick a name">
+        </label>
+        <div class="field">
+          <span>Face</span>
+          <div id="face-grid" class="face-grid"></div>
+        </div>
+        <div class="field">
+          <span>Colour <em class="muted">— everyone in a room gets their own; if yours is taken you get the next free one</em></span>
+          <div id="color-grid" class="color-grid"></div>
+        </div>
+        <div class="id-card">
+          <div id="me-preview"></div>
+          <div>
+            <div id="me-preview-name" class="id-name">—</div>
+            <div class="id-sub">LINK READY</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="menu-actions">
+        <button id="go-host" class="choice cut">
+          <span class="choice-title">HOST</span>
+          <span class="choice-desc">Open a room, share your screen or a window, and run the lobby.</span>
+        </button>
+        <div class="choice choice-join cut">
+          <span class="choice-title">JOIN</span>
+          <span class="choice-desc">Got a code from the host? Put it in.</span>
+          <div class="join-row">
+            <input id="join-code" class="code-input" maxlength="6" placeholder="ABC123" spellcheck="false" autocomplete="off">
+            <button id="join-btn" class="primary">Join</button>
+          </div>
+          <div id="join-error" class="error"></div>
+        </div>
+        <div class="tips cut">
+          <div><b>In a game?</b> Press <b class="key" id="tip-chat-key">Caps Lock</b>, type, hit Enter — you're straight back in the game.</div>
+          <div><b>Ultrawide?</b> Use <b>Zoom / crop</b> while watching to get rid of black bars (or scroll on the picture, drag to move it).</div>
+          <div><b>Shaky internet?</b> Raise the <b>delay buffer</b>; it shows how much smoother it gets.</div>
+        </div>
+        <div class="menu-foot">
+          <span id="app-version" class="muted">Conchilla</span>
+          <button id="check-update" class="small">Check for updates</button>
+          <span id="update-status" class="update-status" hidden></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SETTINGS ============================== -->
+<section id="view-settings" class="view">
+  <header class="bar">
+    <button class="back" data-go="menu">← Back</button>
+    <h1>SETTINGS</h1>
+  </header>
+  <div class="settings-grid">
+    <div class="panel cut">
+      <h2><span class="idx">//</span> Hotkeys</h2>
+      <p class="muted small">Click one, then press the new key. The chat key works while you're in a game.</p>
+      <div class="hotkey-row"><span>Open chat (from any game)</span><button class="hotkey" data-hotkey="chat"></button></div>
+      <div class="hotkey-row"><span>Show / hide stream info</span><button class="hotkey" data-hotkey="stats"></button></div>
+      <div class="hotkey-row"><span>Fullscreen (watching)</span><button class="hotkey" data-hotkey="fullscreen"></button></div>
+      <div id="hotkey-error" class="error"></div>
+    </div>
+    <div class="panel cut">
+      <h2><span class="idx">//</span> Chat overlay</h2>
+      <label class="check"><input type="checkbox" id="ov-pinned"> Pinned on top of games and other programs</label>
+      <label class="field inline"><span>Screen</span><select id="ov-display"></select></label>
+      <label class="field inline"><span>Corner</span>
+        <select id="ov-corner">
+          <option value="top-right">Top right</option><option value="top-left">Top left</option>
+          <option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option>
+        </select>
+      </label>
+      <label class="field inline"><span>Fade after</span><input type="range" id="ov-fade" min="2" max="15" step="1"><b id="ov-fade-val"></b></label>
+      <label class="field inline"><span>Size</span><input type="range" id="ov-scale" min="0.75" max="1.5" step="0.05"><b id="ov-scale-val"></b></label>
+      <div class="btn-row">
+        <button id="ov-move" class="small">Drag to move…</button>
+        <button id="ov-test" class="small">Send a test message</button>
+      </div>
+      <p class="muted small">Games need <b>borderless / windowed fullscreen</b> for anything to show on top of them (exclusive fullscreen hides every overlay, Discord's too).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== HOST LOBBY ============================== -->
+<section id="view-host" class="view">
+  <header class="bar">
+    <button class="back" id="host-close">✕ Close room</button>
+    <h1>HOST · LOBBY</h1>
+    <div class="room-chip">
+      <span class="muted">CODE</span><b id="host-code">------</b>
+      <button id="copy-code" class="small">Copy</button>
+    </div>
+    <div id="host-status" class="status">Opening…</div>
+  </header>
+
+  <div class="host-grid">
+    <div class="panel cut roster-panel">
+      <h2 class="h2-row"><span><span class="idx">01</span> People <span id="host-count" class="muted"></span></span>
+        <label class="lock-toggle" title="Nobody new can join while locked"><input type="checkbox" id="lock-joins"><span>🔒 Lock joins</span></label>
+      </h2>
+      <ul id="host-roster" class="roster"></ul>
+      <div id="banned-wrap" hidden>
+        <h3>Blocked this session</h3>
+        <ul id="banned-list" class="roster small"></ul>
+      </div>
+    </div>
+
+    <div class="panel cut stream-panel">
+      <h2 class="h2-row"><span><span class="idx">02</span> Share</span> <button id="refresh-sources" class="small">↻ Refresh</button></h2>
+      <div class="source-tabs">
+        <button class="tab active" data-tab="screen">Screens</button>
+        <button class="tab" data-tab="window">Windows / apps</button>
+      </div>
+      <div id="sources" class="sources"></div>
+
+      <div class="quality-grid">
+        <label class="field"><span>Resolution</span><select id="q-resolution"></select></label>
+        <label class="field"><span>Frame rate</span>
+          <select id="q-fps"><option value="30">30 fps</option><option value="60">60 fps</option><option value="90">90 fps</option><option value="120">120 fps</option></select>
+        </label>
+        <label class="field"><span>Content</span><select id="q-content"></select></label>
+        <label class="field"><span>Codec</span><select id="q-codec"></select></label>
+        <label class="field span2"><span>Bitrate <b id="q-bitrate-val"></b></span>
+          <input type="range" id="q-bitrate" min="0" max="50" step="0.5">
+        </label>
+        <label class="field"><span>Sound</span>
+          <select id="q-audio"><option value="0">Off</option><option value="128">On · 128 kbps</option><option value="256">On · 256 kbps</option><option value="510">On · 510 kbps (max)</option></select>
+        </label>
+        <label class="field"><span>Max people</span><input type="number" id="q-max" min="1" max="11"></label>
+      </div>
+      <div id="q-summary" class="summary"></div>
+
+      <div class="stream-actions">
+        <button id="stream-toggle" class="primary big">▶ Start streaming</button>
+        <button id="host-chat-pop" class="small" title="Show the in-game chat overlay">Chat overlay</button>
+      </div>
+      <video id="host-preview" muted autoplay playsinline hidden></video>
+    </div>
+
+    <div class="panel cut chat-panel">
+      <h2><span class="idx">03</span> Chat <span class="muted small" id="host-chat-hint"></span></h2>
+      <ul id="host-chat" class="chat-log"></ul>
+      <form class="chat-form" data-chat-form><input maxlength="300" placeholder="Say something…" autocomplete="off" spellcheck="false"></form>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== JOINER LOBBY ============================== -->
+<section id="view-lobby" class="view">
+  <header class="bar">
+    <button class="back" id="lobby-leave">← Leave</button>
+    <h1>LOBBY</h1>
+    <div class="room-chip"><span class="muted">ROOM</span><b id="lobby-code">------</b></div>
+    <div id="lobby-status" class="status">Connecting…</div>
+  </header>
+  <div class="lobby-grid">
+    <div class="panel cut waiting-panel">
+      <div id="waiting" class="waiting">
+        <img src="assets/icon.png" class="logo pulse" alt="">
+        <div class="waiting-title" id="waiting-title">WAITING FOR THE HOST TO SHARE</div>
+        <div class="muted" id="waiting-sub">You can chat while you wait. The stream opens by itself.</div>
+        <button id="rewatch" class="primary" hidden>▶ Watch the stream</button>
+      </div>
+      <div class="viewer-prefs">
+        <label class="field inline"><span>Delay buffer</span><input type="range" id="lobby-buffer" min="0" max="1000" step="10"><b id="lobby-buffer-val"></b></label>
+        <p class="muted small">More buffer = smoother on shaky internet, but a little later. You'll see how much it helps once the stream starts.</p>
+      </div>
+    </div>
+    <div class="panel cut roster-panel">
+      <h2><span class="idx">01</span> People <span id="lobby-count" class="muted"></span></h2>
+      <ul id="lobby-roster" class="roster"></ul>
+    </div>
+    <div class="panel cut chat-panel">
+      <h2><span class="idx">02</span> Chat <span class="muted small" id="lobby-chat-hint"></span></h2>
+      <ul id="lobby-chat" class="chat-log"></ul>
+      <form class="chat-form" data-chat-form><input maxlength="300" placeholder="Say something…" autocomplete="off" spellcheck="false"></form>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== WATCH ============================== -->
+<section id="view-watch" class="view watch">
+  <div id="stage">
+    <video id="watch-video" autoplay playsinline></video>
+  </div>
+  <div id="watch-stats" class="watch-stats"></div>
+  <div id="watch-toast" class="watch-toast"></div>
+  <div id="watch-controls" class="watch-controls">
+    <button id="watch-back" class="small">← Lobby</button>
+    <label class="ctl" title="Zoom in to cut the black bars (or scroll the wheel on the picture)">
+      <span>Zoom / crop</span><input type="range" id="w-zoom" min="0" max="100" step="1"><b id="w-zoom-val"></b>
+    </label>
+    <label class="ctl" title="Move the picture up / down (or drag it)">
+      <span>Vertical</span><input type="range" id="w-pany" min="0" max="100" step="1"><b id="w-pany-val"></b>
+    </label>
+    <button id="w-fill" class="small" title="Zoom until the black bars are gone">Fill</button>
+    <button id="w-reset" class="small" title="Whole picture, centered">Fit</button>
+    <label class="ctl buffer-ctl">
+      <span>Delay buffer</span><input type="range" id="w-buffer" min="0" max="1000" step="10"><b id="w-buffer-val"></b>
+      <span id="w-buffer-meter" class="meter"></span>
+    </label>
+    <button id="w-suggest" class="small" title="Pick the smallest buffer that keeps ~99% of frames on time">Auto</button>
+    <label class="ctl vol">🔊<input type="range" id="w-volume" min="0" max="1" step="0.02"></label>
+    <button id="w-chat" class="small" title="Chat (same key as in games)">💬</button>
+    <button id="w-full" class="small">⛶</button>
+  </div>
+</section>
+
+<div id="modal" class="modal" hidden><div class="modal-box cut"><div id="modal-title" class="modal-title"></div><div id="modal-text"></div><div class="btn-row"><button id="modal-ok" class="primary">OK</button></div></div></div>
+
+<script src="node_modules/peerjs/dist/peerjs.min.js"></script>
+<script src="faces.js"></script>
+<script src="stream.js"></script>
+<script src="app.js"></script>
+<script src="room.js"></script>
+<script src="watch.js"></script>
+</body>
+</html>

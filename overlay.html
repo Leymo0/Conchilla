@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<title>Conchilla Chat</title>
+<link rel="stylesheet" href="overlay.css">
+</head>
+<body>
+  <div id="root">
+    <div id="calls"></div>
+    <div id="composer" hidden>
+      <ul id="history"></ul>
+      <form id="compose-form">
+        <div id="me-face"></div>
+        <div class="compose-body">
+          <label><span id="me-name">You</span> <span class="hint">Enter send · Esc cancel</span></label>
+          <input id="compose" maxlength="300" autocomplete="off" spellcheck="false" placeholder="Type to your group…">
+        </div>
+      </form>
+    </div>
+    <div id="move-frame" hidden><div>DRAG ME<br><small>then click “Done moving” in Conchilla</small></div></div>
+  </div>
+<script src="faces.js"></script>
+<script src="overlay.js"></script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+# Builds the Windows installer and publishes a GitHub release.
+# Conchilla's "Check for updates" button downloads updates from these releases.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          # Log goes OUTSIDE the project folder: a file growing while the app is packed corrupts the package
+          $log = Join-Path $env:RUNNER_TEMP 'build.log'
+          npx electron-builder --win nsis --x64 --publish never 2>&1 | Tee-Object -FilePath $log
+          if ($LASTEXITCODE -ne 0) {
+            $tail = (Get-Content $log -Tail 20) -join ' || '
+            Write-Output "::error title=Build failed::$tail"
+            exit 1
+          }
+
+      # Never publish a broken app: read every file back out of the packed app and check it
+      - name: Verify the packed app
+        shell: pwsh
+        run: |
+          $out = node scripts/verify-asar.js dist/win-unpacked/resources/app.asar 2>&1
+          Write-Host ($out -join "`n")
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error title=Packed app is broken::$($out -join ' || ')"; exit 1 }
+          if (-not (Test-Path dist/win-unpacked/resources/app.asar.unpacked/node_modules/koffi/build/koffi/win32_x64/koffi.node)) {
+            Write-Output "::error title=Missing focus helper::koffi.node was not unpacked"; exit 1
+          }
+
+      # Start the packed app for a few seconds: it must not crash on launch
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $env:CONCHILLA_PROFILE = Join-Path $env:RUNNER_TEMP 'smoke'
+          $p = Start-Process -FilePath dist/win-unpacked/Conchilla.exe -PassThru
+          Start-Sleep -Seconds 12
+          if ($p.HasExited) { Write-Output "::error title=App crashed on start::exit code $($p.ExitCode)"; exit 1 }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "App started fine"
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $files = @(Get-ChildItem dist -File | Where-Object { $_.Name -match '\.(exe|blockmap)$' -or $_.Name -eq 'latest.yml' } | ForEach-Object { $_.FullName })
+          Write-Host "Publishing v$version with: $($files -join ', ')"
+          gh release view "v$version" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            $out = gh release upload "v$version" @files --clobber 2>&1
+            if ($LASTEXITCODE -eq 0) { $out += gh release edit "v$version" --notes-file build/release-notes.md --title "Conchilla $version" 2>&1 }
+          } else {
+            $out = gh release create "v$version" @files --title "Conchilla $version" --notes-file build/release-notes.md --target $env:GITHUB_SHA 2>&1
+          }
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error title=Publish failed::$($out -join ' || ')"; exit 1 }
+          Write-Host $out

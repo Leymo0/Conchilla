@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <radialGradient id="fur" cx="50%" cy="38%" r="70%">
+      <stop offset="0" stop-color="#0b4a55"/><stop offset="1" stop-color="#03222a"/>
+    </radialGradient>
+    <radialGradient id="ear" cx="50%" cy="45%" r="60%">
+      <stop offset="0" stop-color="#ff3df5" stop-opacity=".55"/><stop offset="1" stop-color="#ff3df5" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#19f0ff" stroke-opacity=".09" stroke-width="2"/>
+    </pattern>
+    <clipPath id="tile"><rect x="16" y="16" width="480" height="480" rx="108"/></clipPath>
+  </defs>
+
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="#021317"/>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#grid)"/>
+  <g clip-path="url(#tile)" stroke="#19f0ff" stroke-opacity=".35" stroke-width="5" fill="none">
+    <path d="M16 420 H90 L120 450 H200"/><path d="M496 410 H430 L400 440 H330"/>
+    <path d="M60 16 V70 L90 100"/><path d="M452 16 V64 L420 96"/>
+    <circle cx="90" cy="100" r="7" fill="#19f0ff"/><circle cx="420" cy="96" r="7" fill="#19f0ff"/>
+  </g>
+
+  <g filter="url(#glow)" stroke="#19f0ff" stroke-linejoin="round" stroke-linecap="round">
+    <!-- ears -->
+    <ellipse cx="160" cy="158" rx="82" ry="96" transform="rotate(-20 160 158)" fill="#05303a" stroke-width="9"/>
+    <ellipse cx="352" cy="158" rx="82" ry="96" transform="rotate(20 352 158)" fill="#05303a" stroke-width="9"/>
+    <ellipse cx="164" cy="166" rx="48" ry="62" transform="rotate(-20 164 166)" fill="url(#ear)" stroke="#ff3df5" stroke-opacity=".7" stroke-width="4"/>
+    <ellipse cx="348" cy="166" rx="48" ry="62" transform="rotate(20 348 166)" fill="url(#ear)" stroke="#ff3df5" stroke-opacity=".7" stroke-width="4"/>
+    <!-- fluffy round body / head -->
+    <path fill="url(#fur)" stroke-width="10" d="
+      M256 150
+      C 330 150 392 186 412 246
+      L 426 262 L 414 276
+      C 426 330 410 380 372 412
+      L 378 430 L 356 428
+      C 326 446 290 452 256 452
+      C 222 452 186 446 156 428
+      L 134 430 L 140 412
+      C 102 380 86 330 98 276
+      L 86 262 L 100 246
+      C 120 186 182 150 256 150 Z"/>
+    <!-- digital fur facets -->
+    <path d="M256 150 L256 196 M196 166 L214 204 M316 166 L298 204" stroke-width="4" stroke-opacity=".5"/>
+    <path d="M150 400 L182 372 L214 398 M362 400 L330 372 L298 398" stroke-width="4" stroke-opacity=".45" fill="none"/>
+    <!-- eyes -->
+    <circle cx="196" cy="282" r="34" fill="#000b0e" stroke-width="6"/>
+    <circle cx="316" cy="282" r="34" fill="#000b0e" stroke-width="6"/>
+    <rect x="202" y="262" width="14" height="14" fill="#e9feff" stroke="none"/>
+    <rect x="322" y="262" width="14" height="14" fill="#e9feff" stroke="none"/>
+    <rect x="186" y="292" width="7" height="7" fill="#19f0ff" stroke="none"/>
+    <rect x="306" y="292" width="7" height="7" fill="#19f0ff" stroke="none"/>
+    <!-- nose + mouth -->
+    <path d="M242 324 H270 L256 340 Z" fill="#ff3df5" stroke="#ff3df5" stroke-width="5"/>
+    <path d="M256 342 Q246 360 230 354 M256 342 Q266 360 282 354" fill="none" stroke-width="5"/>
+    <!-- circuit whiskers -->
+    <g fill="none" stroke-width="5">
+      <path d="M214 336 H160 L138 318 H94"/>
+      <path d="M214 350 H120 L100 366 H70"/>
+      <path d="M298 336 H352 L374 318 H418"/>
+      <path d="M298 350 H392 L412 366 H442"/>
+    </g>
+    <g fill="#19f0ff" stroke="none">
+      <circle cx="94" cy="318" r="8"/><circle cx="70" cy="366" r="8"/>
+      <circle cx="418" cy="318" r="8"/><circle cx="442" cy="366" r="8"/>
+    </g>
+  </g>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="none" stroke="#19f0ff" stroke-width="10" filter="url(#glow)"/>
+</svg>
