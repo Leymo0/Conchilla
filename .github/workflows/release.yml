@@ -117,3 +117,49 @@ jobs:
           }
           if ($LASTEXITCODE -ne 0) { Write-Output "::error title=Publish failed::$($out -join ' || ')"; exit 1 }
           Write-Host $out
+
+  # Android app (join & watch), uploaded to the same release as Conchilla-<version>.apk
+  android:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.CONCHILLA_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error title=No Android signing key::Add the CONCHILLA_KEYSTORE_B64 and CONCHILLA_KEYSTORE_PASSWORD repository secrets"; exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/conchilla.jks"
+      - name: Build the app pages
+        run: |
+          npm ci --ignore-scripts
+          cd mobile
+          npm ci
+          node build-www.js
+          npx cap sync android
+      - name: Build the APK
+        env:
+          CONCHILLA_KEYSTORE: ${{ runner.temp }}/conchilla.jks
+          CONCHILLA_KEYSTORE_PASSWORD: ${{ secrets.CONCHILLA_KEYSTORE_PASSWORD }}
+        run: |
+          cd mobile/android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          version=$(node -p "require('../../package.json').version")
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Conchilla-$version.apk"
+          "$ANDROID_HOME"/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner verify --print-certs "$RUNNER_TEMP/Conchilla-$version.apk" | head -3
+          echo "APK=$RUNNER_TEMP/Conchilla-$version.apk" >> "$GITHUB_ENV"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v$VERSION" "$APK" --clobber

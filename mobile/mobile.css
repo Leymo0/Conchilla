@@ -1,0 +1,76 @@
+/* Conchilla on Android: the desktop pages, laid out for a phone. Loaded after styles.css. */
+
+body.mobile {
+  font-size: 15px;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none; user-select: none;
+  overscroll-behavior: none;
+}
+body.mobile input, body.mobile textarea { -webkit-user-select: text; user-select: text; font-size: 16px; }
+body.mobile .view { height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+body.mobile .view.watch { padding: 0; }
+body.mobile button { padding: 10px 14px; font-size: 12px; }
+body.mobile button.small { padding: 8px 12px; font-size: 12px; }
+body.mobile button:hover:not(:disabled) { background: rgba(25, 240, 255, .06); box-shadow: none; color: var(--cy); }
+body.mobile button:active:not(:disabled) { background: rgba(25, 240, 255, .2); box-shadow: 0 0 14px var(--cy-glow); color: #fff; }
+body.mobile input[type="range"] { height: 28px; }
+body.mobile input[type="range"]::-webkit-slider-thumb { width: 18px; height: 22px; margin-top: -9.5px; }
+
+/* ---------- menu ---------- */
+body.mobile .menu { padding: 16px; gap: 16px; }
+body.mobile .menu-grid { grid-template-columns: 1fr; gap: 16px; }
+body.mobile .menu-actions { order: -1; }          /* JOIN first: it's what the phone is for */
+body.mobile .logo { width: 52px; height: 52px; }
+body.mobile .wordmark { font-size: 28px; letter-spacing: .16em; }
+body.mobile .tagline { font-size: 10px; letter-spacing: .12em; }
+body.mobile .face-grid { grid-template-columns: repeat(3, 1fr); }
+body.mobile .color-grid { grid-template-columns: repeat(6, 1fr); gap: 8px; }
+body.mobile .choice { padding: 16px; }
+body.mobile .choice-title { font-size: 22px; }
+body.mobile #go-host { order: 2; opacity: .55; }
+body.mobile #go-host:disabled { opacity: .45; }
+body.mobile .choice-join { order: 1; }
+body.mobile .tips { order: 3; }
+body.mobile .menu-foot { order: 4; }
+body.mobile .join-row { flex-direction: column; }
+body.mobile .code-input { font-size: 17px; padding: 12px 8px; }
+body.mobile #join-btn { padding: 12px; font-size: 14px; }
+
+/* ---------- settings ---------- */
+body.mobile .settings-grid { grid-template-columns: 1fr; padding: 14px; }
+body.mobile [hidden] { display: none !important; }
+
+/* ---------- lobby ---------- */
+body.mobile .bar { flex-wrap: wrap; gap: 8px 12px; padding: 10px 14px; }
+body.mobile .bar h1 { font-size: 15px; }
+body.mobile .room-chip b { font-size: 13px; }
+body.mobile #lobby-status { flex-basis: 100%; font-size: 11px; }
+body.mobile .lobby-grid { display: flex; flex-direction: column; overflow: auto; padding: 12px; gap: 12px; }
+body.mobile .lobby-grid .waiting-panel { flex: none; }
+body.mobile .waiting { padding: 8px 0 14px; }
+body.mobile .logo.pulse { width: 72px; height: 72px; }
+body.mobile .waiting-title { font-size: 17px; letter-spacing: .14em; }
+body.mobile #rewatch { padding: 14px 22px; font-size: 14px; }
+body.mobile .roster-panel { flex: none; max-height: 34vh; }
+body.mobile .chat-panel { flex: none; min-height: 50vh; }
+body.mobile .field.inline > span { min-width: 80px; }
+
+/* ---------- watching ---------- */
+body.mobile .watch-controls {
+  bottom: max(10px, env(safe-area-inset-bottom)); width: calc(100% - 16px); max-width: 720px;
+  gap: 8px 10px; padding: 10px 12px;
+}
+body.mobile .watch-controls .ctl input[type=range] { width: 110px; }
+body.mobile .watch-controls label.ctl:has(#w-pany) { display: none; }   /* drag the picture instead */
+body.mobile .buffer-ctl input[type=range] { display: none; }            /* Auto handles it; set it in the lobby */
+body.mobile .meter { min-width: 0; }
+body.mobile .watch-stats { top: max(12px, env(safe-area-inset-top)); font-size: 11px; }
+body.mobile #stage { touch-action: none; }
+
+/* the chat cards / chat box, over the stream only */
+#chat-overlay { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: transparent;
+  z-index: 40; pointer-events: none; }
+body.chat-open #chat-overlay { pointer-events: auto; }
+body:not([data-view="watch"]) #chat-overlay { display: none; }
+body.chat-open .watch-controls { opacity: 0; pointer-events: none; }

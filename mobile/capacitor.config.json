@@ -1,0 +1,9 @@
+{
+  "appId": "com.peri.conchilla",
+  "appName": "Conchilla",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#020a0d",
+    "allowMixedContent": false
+  }
+}

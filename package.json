@@ -33,6 +33,7 @@
     "files": [
       "**/*",
       "!dist/**",
+      "!mobile/**",
       "!build/icon.ico",
       "!build/icon.svg",
       "!README.md",

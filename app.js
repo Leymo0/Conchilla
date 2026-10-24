@@ -214,7 +214,8 @@ async function checkUpdate() {
   $('check-update').disabled = true;
   const res = await api.runUpdate();
   $('check-update').disabled = false;
-  if (res.restarting) updateStatus(`Updating to ${res.version}… Conchilla will reopen`, 'busy');
+  if (res.message) updateStatus(res.message, res.kind || 'ok');
+  else if (res.restarting) updateStatus(`Updating to ${res.version}… Conchilla will reopen`, 'busy');
   else if (res.ok) updateStatus(res.dev ? 'Dev copy — updates come from git' : `✓ Up to date (${res.version})`, 'ok');
   else updateStatus(`Couldn't update: ${res.error}`, 'warn');
 }

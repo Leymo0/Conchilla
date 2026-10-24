@@ -247,6 +247,45 @@ const Watch = (() => {
   }, { passive: false });
   stage.addEventListener('dblclick', () => setFullscreen(!fullscreen));
 
+  // touch (phones / tablets): one finger drags the picture, two fingers pinch to zoom,
+  // tap shows / hides the controls, double-tap toggles fullscreen
+  let touch = null, lastTap = 0;
+  const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  stage.addEventListener('touchstart', (e) => {
+    const t = e.touches;
+    const { W, H, dw, dh } = layout();
+    if (t.length >= 2) touch = { pinch: dist(t), zoom: v().zoom, moved: true };
+    else touch = { x: t[0].clientX, y: t[0].clientY, panX: v().panX, panY: v().panY, ox: dw - W, oy: dh - H, t: Date.now(), moved: false };
+  }, { passive: true });
+  stage.addEventListener('touchmove', (e) => {
+    if (!touch) return;
+    e.preventDefault();
+    const t = e.touches;
+    if (touch.pinch && t.length >= 2) {
+      setView({ zoom: touch.zoom + (dist(t) / touch.pinch - 1) * 120 });
+    } else if (!touch.pinch && t.length === 1) {
+      const dx = t[0].clientX - touch.x, dy = t[0].clientY - touch.y;
+      if (Math.abs(dx) + Math.abs(dy) > 8) touch.moved = true;
+      if (!touch.moved) return;
+      const patch = {};
+      if (touch.ox > 0) patch.panX = touch.panX - (dx / touch.ox) * 100;
+      if (touch.oy > 0) patch.panY = touch.panY - (dy / touch.oy) * 100;
+      setView(patch);
+    }
+  }, { passive: false });
+  stage.addEventListener('touchend', (e) => {
+    if (!touch || e.touches.length) return;
+    const tap = !touch.moved && Date.now() - touch.t < 300;
+    touch = null;
+    e.preventDefault();               // no fake mouse events after a touch
+    if (!tap) return;
+    const now = Date.now();
+    if (now - lastTap < 300) { lastTap = 0; setFullscreen(!fullscreen); return; }
+    lastTap = now;
+    if (document.body.classList.contains('idle')) showControls();
+    else { clearTimeout(hideTimer); document.body.classList.add('idle'); }
+  }, { passive: false });
+
   video.addEventListener('loadedmetadata', layout);
   video.addEventListener('resize', layout);
   window.addEventListener('resize', layout);
