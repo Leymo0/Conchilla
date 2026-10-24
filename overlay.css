@@ -124,7 +124,7 @@ body:not(.bottom) #composer { margin-top: 0; }
   color: var(--cy); letter-spacing: .2em; font-size: 1.3em; text-shadow: 0 0 8px var(--cy);
   -webkit-app-region: drag; cursor: move;
 }
-#move-frame[hidden], #composer[hidden], #quick[hidden] { display: none; }
+#move-frame[hidden], #composer[hidden], #quick[hidden], #q-warn[hidden] { display: none; }
 #move-frame small { font-size: .55em; letter-spacing: .08em; opacity: .8; }
 
 /* ---------------- F8 quick stream menu ---------------- */
@@ -160,3 +160,5 @@ body:not(.bottom) #composer { margin-top: 0; }
   clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
 }
 #q-stream.stop { background: rgba(255, 77, 94, .2); color: #ff6b7a; border: 1px solid rgba(255, 77, 94, .6); }
+
+.q-warn { font-size: .8em; color: #ffd23d; margin: -4px 0 10px; line-height: 1.35; }

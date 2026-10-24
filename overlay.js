@@ -140,6 +140,8 @@ function renderQuick() {
   $('q-status').innerHTML = st.streaming
     ? `<b class="live">● LIVE</b> ${esc(st.sending)} · ${st.watchers} watching${st.source ? ` · ${esc(st.source)}` : ''}`
     : `Not streaming${st.source ? ` · ready to share ${esc(st.source)}` : ''}`;
+  $('q-warn').hidden = !st.warn;
+  $('q-warn').textContent = st.warn || '';
   $('q-stream').textContent = st.streaming ? '■ Stop streaming' : '▶ Start streaming';
   $('q-stream').classList.toggle('stop', st.streaming);
 }

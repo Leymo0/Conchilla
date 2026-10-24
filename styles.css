@@ -244,3 +244,10 @@ body.idle[data-view="watch"] { cursor: none; }
 
 .room-chip.sealed { border-color: var(--good); box-shadow: 0 0 14px rgba(77, 255, 176, .25); }
 .room-chip.sealed b { color: var(--good); text-shadow: 0 0 10px rgba(77, 255, 176, .5); }
+
+button.toggle { min-width: 52px; }
+button.toggle.on { background: var(--cy); color: #001417; border-color: var(--cy); box-shadow: 0 0 10px var(--cy-glow); font-weight: 700; }
+.buffer-ctl input[type=range]:disabled { opacity: .35; }
+#lobby-buffer:disabled { opacity: .35; }
+
+.host-warn { margin-top: 6px; color: var(--warn); font-weight: 600; }

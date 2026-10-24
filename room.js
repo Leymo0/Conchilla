@@ -18,6 +18,7 @@ const Room = (() => {
   const blocked = new Map();         // id → name
   let locked = false;
   let sealed = false, resealTimer = null, opened = false;
+  let hostWarn = '', warnStreak = 0;
   let stream = null, streaming = false, cfg = null;
   let sources = [], sourceTab = 'screen';
 
@@ -366,12 +367,22 @@ const Room = (() => {
   }
 
   async function hostStats() {
-    if (!streaming) return;
+    if (!streaming) { hostWarn = ''; return; }
     for (const m of members.values()) {
       if (!m.call) continue;
       const s = await readStats(m.call.peerConnection, 'outbound', m.stats).catch(() => null);
       if (s) m.stats = s;
     }
+    // Is the host's PC or upload holding the stream back? (needs ~6 s in a row, so blips don't nag)
+    const live = [...members.values()].filter((m) => m.call && m.stats?.w);
+    const cpu = live.filter((m) => m.stats.limit === 'cpu').length;
+    const bw = live.filter((m) => m.stats.limit === 'bandwidth').length;
+    const fps = live.length ? Math.round(live.reduce((a, m) => a + (m.stats.fps || 0), 0) / live.length) : 0;
+    let warn = '';
+    if (live.length && cpu * 2 >= live.length) warn = `⚠ Your PC can't keep up — sending ~${fps} of ${cfg.fps} fps. Lower the frame rate or resolution, or cap your game's FPS.`;
+    else if (live.length && bw * 2 >= live.length) warn = '⚠ Your upload can\'t keep up for everyone — lower the bitrate or resolution.';
+    warnStreak = warn ? warnStreak + 1 : 0;
+    hostWarn = warnStreak >= 3 ? warn : '';
     renderHost();
   }
 
@@ -490,7 +501,8 @@ const Room = (() => {
     const total = p.mbps * Math.max(1, watchers) + (p.audioKbps / 1000) * Math.max(1, watchers);
     $('q-summary').innerHTML = `Sends <b>${p.w}×${p.h}${stream ? '' : ' (≈)'}</b> · ${p.fps} fps · ${CODECS[p.codec].mime} · ~${p.mbps} Mbps per person.
       ${watchers ? `${watchers} watching → you need <b>~${Math.ceil(total)} Mbps upload</b>.` : 'Each extra viewer adds the same again to your upload.'}
-      ${total > 40 ? '<span class="warn">That\'s a lot of upload — lower the bitrate or resolution if anyone stutters.</span>' : ''}`;
+      ${total > 40 ? '<span class="warn">That\'s a lot of upload — lower the bitrate or resolution if anyone stutters.</span>' : ''}
+      ${hostWarn ? `<div class="host-warn">${escapeHtml(hostWarn)}</div>` : ''}`;
   }
 
   function updateStreamButton() {
@@ -944,6 +956,7 @@ const Room = (() => {
       autoMbps: p.mbps,
       sending: streaming ? `${cfg.w}×${cfg.h} · ${cfg.fps} fps · ${cfg.mbps} Mbps` : 'not streaming',
       watchers: [...members.values()].filter((m) => m.watching).length,
+      warn: hostWarn,
       source: sources.find((x) => x.id === settings.host.sourceId)?.name || '',
     };
   }

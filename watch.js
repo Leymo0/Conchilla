@@ -1,10 +1,11 @@
-// Watching the host's stream: crop / zoom, delay buffer with an on-time meter, stats (F7).
+// Watching the host's stream: crop / zoom, delay buffer (Auto or manual) with a diagnosis, stats (F7).
 
 const Watch = (() => {
   const video = $('watch-video');
   const stage = $('stage');
   let call = null, cfg = {}, statsTimer = null, meterTimer = null, lastStats = null, closeTimer = null;
-  let meter = new OnTimeMeter(video);
+  let meter = new PlaybackMeter(video);
+  let auto = new AutoBuffer(), liveBuffer = 0, analysis = null;
   let fullscreen = false, hideTimer = null;
   const v = () => settings.viewer;
 
@@ -22,8 +23,10 @@ const Watch = (() => {
       video.srcObject = s;
       routeAudio(s);
       video.play().catch(() => {});
+      meter.stop(); meter = new PlaybackMeter(video); meter.start();
+      auto = new AutoBuffer(); analysis = null;
+      liveBuffer = v().autoBuffer !== false ? 0 : v().bufferMs;
       applyBuffer();
-      meter.stop(); meter = new OnTimeMeter(video); meter.start();
       toast('');
     });
     newCall.on('close', () => {
@@ -42,7 +45,7 @@ const Watch = (() => {
     clearInterval(statsTimer); clearInterval(meterTimer);
     lastStats = null;
     statsTimer = setInterval(updateStats, 1000);
-    meterTimer = setInterval(updateMeter, 1000);
+    meterTimer = setInterval(updateMeter, 3000);
     renderStats();
     showControls();
   }
@@ -88,15 +91,21 @@ const Watch = (() => {
   }
 
   // ---------------------------------------------------------------- delay buffer
+  // Auto (default): keeps adjusting to the connection. Manual: the slider.
+
+  const isAuto = () => v().autoBuffer !== false;
 
   function applyBuffer() {
-    const ms = v().bufferMs;
+    const ms = isAuto() ? liveBuffer : v().bufferMs;
     for (const r of call?.peerConnection?.getReceivers() || []) {
       try { r.jitterBufferTarget = ms; } catch { /* older engine */ }
     }
-    $('w-buffer').value = ms; $('lobby-buffer').value = ms;
-    $('w-buffer-val').textContent = `${ms} ms`; $('lobby-buffer-val').textContent = `${ms} ms`;
-    updateMeter();
+    for (const id of ['w-buffer', 'lobby-buffer']) { $(id).value = ms; $(id).disabled = isAuto(); }
+    const label = isAuto() ? `Auto · ${ms} ms` : `${ms} ms`;
+    $('w-buffer-val').textContent = label; $('lobby-buffer-val').textContent = label;
+    $('w-auto').classList.toggle('on', isAuto());
+    $('w-auto').setAttribute('aria-pressed', String(isAuto()));
+    $('lobby-auto').checked = isAuto();
   }
 
   async function setBuffer(ms, persist = true) {
@@ -105,19 +114,51 @@ const Watch = (() => {
     if (persist) await save({ viewer: { bufferMs: ms } });
   }
 
-  // "97% on time · +18% smoother": measured from the real frame arrival times on this connection
+  async function setAuto(on) {
+    settings.viewer.autoBuffer = on;
+    if (on) { auto = new AutoBuffer(); liveBuffer = analysis?.suggestion ?? v().bufferMs; }
+    applyBuffer();
+    renderMeter();
+    await save({ viewer: { autoBuffer: on } });
+  }
+
+  // Every 3 s: what's causing hiccups (if anything), and let Auto adjust
   function updateMeter() {
+    if (!call) return;
+    const current = isAuto() ? liveBuffer : v().bufferMs;
+    analysis = meter.analyze(current);
+    if (isAuto() && analysis) {
+      const next = auto.step(analysis, liveBuffer);
+      if (next !== liveBuffer) { liveBuffer = next; applyBuffer(); }
+    }
+    renderMeter();
+  }
+
+  // One short line, only visible with the controls (they hide while you watch)
+  function diagnosis() {
+    const a = analysis;
+    if (!a) return { cls: 'muted', text: 'checking…', tip: 'Needs a few seconds of video' };
+    const buf = isAuto() ? liveBuffer : v().bufferMs;
+    if (a.hostStutters >= 10) {
+      return { cls: 'bad', text: "host's PC is stuttering",
+        tip: `About ${Math.round(a.hostStutters)} stutters a minute are coming from the host's side (their PC or game skipped frames). ` +
+             "A buffer can't fix that — the host can lower the frame rate or resolution, or cap the game's FPS a little below their monitor's refresh rate." };
+    }
+    if (a.hiccupsOff >= 3) {
+      const left = Math.round(a.hiccupsWith);
+      return left < 1
+        ? { cls: 'good', text: `shaky connection · smoothed`, tip: `Your connection has about ${Math.round(a.hiccupsOff)} hiccups a minute; the ${buf} ms buffer hides them.` }
+        : { cls: 'ok', text: `shaky connection · ${left}/min left`, tip: `About ${Math.round(a.hiccupsOff)} hiccups a minute without a buffer, ${left} with ${buf} ms.${isAuto() ? ' Auto is raising it.' : ' Turn on Auto or raise the buffer.'}` };
+    }
+    return { cls: 'good', text: 'smooth', tip: 'No hiccups from the connection or the host right now.' };
+  }
+
+  function renderMeter() {
+    const d = diagnosis();
     const el = $('w-buffer-meter');
-    const late = meter.lateness();
-    if (!late) { el.innerHTML = '<span class="muted">measuring…</span>'; el.title = 'Needs a few seconds of video'; return; }
-    const ms = v().bufferMs;
-    const withB = meter.onTime(ms, late), without = meter.onTime(0, late);
-    const gain = withB - without;
-    const cls = withB >= 98.5 ? 'good' : withB >= 93 ? 'ok' : 'bad';
-    el.innerHTML = `<b class="${cls}">${withB.toFixed(1)}%</b> on time` +
-      (ms > 0 ? ` <span class="gain">${gain >= 0.1 ? `+${gain.toFixed(1)}% smoother` : 'no gain now'}</span>` : '');
-    el.title = `Over the last ~20 s: with ${ms} ms of buffer ${withB.toFixed(1)}% of frames arrive in time to play smoothly; with no buffer ${without.toFixed(1)}%. ` +
-      `Buffer adds ${ms} ms of delay. Suggested: ${meter.suggest(late)} ms.`;
+    el.innerHTML = `<b class="${d.cls}"></b>`;
+    el.firstChild.textContent = d.text;
+    el.title = d.tip;
   }
 
   // ---------------------------------------------------------------- stats (F7)
@@ -140,6 +181,12 @@ const Watch = (() => {
       `delay ≈ ${Math.round(delay)} ms (buffer ${s.bufferMs ?? '–'} ms)`,
       `loss ${s.lossPct != null ? s.lossPct.toFixed(1) : '0.0'}% · freezes ${s.freezes ?? 0} · dropped ${s.dropped ?? 0}`,
     ];
+    const a = analysis;
+    if (a) {
+      const buf = isAuto() ? liveBuffer : v().bufferMs;
+      rows.push(`connection: ${Math.round(a.hiccupsOff)} hiccups/min → ${Math.round(a.hiccupsWith)} with ${buf} ms${isAuto() ? ' (Auto)' : ''}`);
+      rows.push(`host's side: ${Math.round(a.hostStutters)} stutters/min${a.hostStutters >= 10 ? ' ⚠ their PC/game is skipping frames' : ''}`);
+    }
     el.innerHTML = rows.map((r) => `<div>${r}</div>`).join('') + `<div class="muted">${escapeHtml(prettyKey(settings.hotkeys.stats))} hides this</div>`;
   }
 
@@ -237,11 +284,8 @@ const Watch = (() => {
     const onBuffer = (e) => setBuffer(Number(e.target.value), false);
     const saveBuffer = (e) => setBuffer(Number(e.target.value), true);
     for (const id of ['w-buffer', 'lobby-buffer']) { $(id).oninput = onBuffer; $(id).onchange = saveBuffer; }
-    $('w-suggest').onclick = () => {
-      const s = meter.suggest();
-      if (s == null) toast('Still measuring — give it a few seconds');
-      else { setBuffer(s); toast(`Buffer set to ${s} ms`); setTimeout(() => toast(''), 1800); }
-    };
+    $('w-auto').onclick = () => setAuto(!isAuto());
+    $('lobby-auto').onchange = (e) => setAuto(e.target.checked);
     setVolume(vs().volume);
     $('w-volume').oninput = (e) => { settings.viewer.volume = Number(e.target.value); setVolume(settings.viewer.volume); };
     $('w-volume').onchange = () => save({ viewer: { volume: settings.viewer.volume } });

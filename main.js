@@ -47,7 +47,8 @@ const DEFAULT_SETTINGS = {
     sourceId: null,
     autoSeal: true,        // drop off the lobby server once streaming starts
   },
-  viewer: { bufferMs: 150, zoom: 0, panX: 50, panY: 50, volume: 0.9, showStats: true },
+  viewer: { bufferMs: 150, autoBuffer: true, zoom: 0, panX: 50, panY: 50, volume: 0.9, showStats: false },
+  viewerVersion: 2,
 };
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
@@ -70,6 +71,13 @@ function loadSettings() {
     if (saved.hotkeys?.chat === 'Capslock') s.hotkeys.chat = DEFAULT_SETTINGS.hotkeys.chat;
     s.hotkeysVersion = 2;
     try { fs.writeFileSync(settingsFile(), JSON.stringify({ ...s }, null, 2)); } catch { /* fine */ }
+  }
+  // 0.4.1: Auto buffer on and stream info hidden for everyone (less clutter while watching)
+  if ((saved.viewerVersion || 1) < 2) {
+    s.viewer.autoBuffer = true;
+    s.viewer.showStats = false;
+    s.viewerVersion = 2;
+    try { fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2)); } catch { /* fine */ }
   }
   if (!s.clientId) {
     s.clientId = require('crypto').randomUUID();

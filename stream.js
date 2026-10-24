@@ -168,13 +168,15 @@ async function readStats(pc, kind, prev) {
   return out;
 }
 
-// Viewer-side meter: how many frames would play on time with a given buffer.
-// Uses each frame's real network arrival time (requestVideoFrameCallback), so it measures
-// the actual hiccups on this connection over the last ~20 s.
-class OnTimeMeter {
+// Viewer-side playback meter. For every frame that reaches the screen we know when the host
+// captured it (rtpTimestamp) and when it arrived here (receiveTime). From that:
+//  - network hiccups: frames arriving well after the usual delay → the delay buffer fixes these
+//  - host stutters:   gaps in the capture times themselves → the host's PC/game skipped frames,
+//                     which no buffer can fix
+class PlaybackMeter {
   constructor(video) {
     this.video = video;
-    this.samples = [];       // [arrivalMs, lateMs]
+    this.samples = [];       // [arrivalMs, transitMs, captureMs]
     this.running = false;
   }
 
@@ -184,13 +186,12 @@ class OnTimeMeter {
     const tick = (_now, meta) => {
       if (!this.running) return;
       if (meta.receiveTime && meta.rtpTimestamp != null) {
-        // transit = arrival - send time (+ unknown clock offset, which cancels out below)
-        const transit = meta.receiveTime - meta.rtpTimestamp / 90;
-        // timestamp wrap-around or a new stream: start over
+        const captured = meta.rtpTimestamp / 90;
+        const transit = meta.receiveTime - captured;   // + an unknown clock offset that cancels out
         const last = this.samples[this.samples.length - 1];
-        if (last && Math.abs(transit - last[1]) > 5000) this.samples = [];
-        this.samples.push([meta.receiveTime, transit]);
-        const cutoff = meta.receiveTime - 20000;
+        if (last && Math.abs(transit - last[1]) > 5000) this.samples = [];   // new stream / wrap-around
+        this.samples.push([meta.receiveTime, transit, captured]);
+        const cutoff = meta.receiveTime - 30000;
         while (this.samples.length && this.samples[0][0] < cutoff) this.samples.shift();
       }
       this.video.requestVideoFrameCallback(tick);
@@ -200,35 +201,70 @@ class OnTimeMeter {
 
   stop() { this.running = false; this.samples = []; }
 
-  // How much later than usual each frame arrived. The connection's normal, steady delay
-  // is already handled by WebRTC on its own; the buffer is for the spikes above it.
-  lateness() {
-    if (this.samples.length < 60) return null;
-    const transits = this.samples.map(([, t]) => t).sort((a, b) => a - b);
+  // Last ~30 s: hiccups per minute without / with `bufferMs`, host stutters per minute,
+  // and the buffer that would remove nearly all network hiccups.
+  analyze(bufferMs = 0) {
+    const s = this.samples;
+    if (s.length < 90) return null;
+    const secs = (s[s.length - 1][0] - s[0][0]) / 1000;
+    if (secs < 8) return null;
+    const perMin = (n) => (n * 60) / secs;
+
+    const transits = s.map((x) => x[1]).sort((a, b) => a - b);
     const typical = transits[Math.floor(transits.length / 2)];
-    return this.samples.map(([, t]) => Math.max(0, t - typical));
-  }
+    const late = s.map((x) => x[1] - typical);
+    // a hiccup = a run of frames arriving > 50 ms later than the buffer can absorb
+    const hiccups = (buf) => {
+      let n = 0, prev = false;
+      for (const l of late) { const bad = l > buf + 50; if (bad && !prev) n++; prev = bad; }
+      return perMin(n);
+    };
+    const sortedLate = [...late].sort((a, b) => a - b);
+    const p995 = sortedLate[Math.floor(sortedLate.length * 0.995)] || 0;
+    const suggestion = Math.min(800, Math.max(0, Math.ceil((p995 - 30) / 10) * 10));
 
-  // % of frames that arrive within `bufferMs` (+ one frame of slack)
-  onTime(bufferMs, late = this.lateness()) {
-    if (!late) return null;
-    const limit = bufferMs + 17;
-    let ok = 0;
-    for (const l of late) if (l <= limit) ok++;
-    return (100 * ok) / late.length;
-  }
+    // host side: gaps between capture times, ignoring "nothing changed on screen" pauses (> 1 s)
+    // Only gaps between frames that both arrived on time count — when the network is late,
+    // the viewer skips frames too, and that's not the host's fault.
+    const deltas = [];
+    for (let i = 1; i < s.length; i++) {
+      const d = s[i][2] - s[i - 1][2];
+      if (d > 0) deltas.push([d, late[i] <= bufferMs + 30 && late[i - 1] <= bufferMs + 30]);
+    }
+    const sortedD = deltas.map((x) => x[0]).sort((a, b) => a - b);
+    const frameMs = sortedD[Math.floor(sortedD.length / 2)] || 0;
+    let gaps = 0;
+    if (frameMs && frameMs < 50) for (const [d, onTime] of deltas) if (onTime && d > Math.max(2.5 * frameMs, 50) && d < 1000) gaps++;
 
-  // Smallest buffer that would make ~99% of frames on time
-  suggest(late = this.lateness()) {
-    if (!late) return null;
-    const sorted = [...late].sort((a, b) => a - b);
-    const p99 = sorted[Math.floor(sorted.length * 0.99)] || 0;
-    return Math.min(1000, Math.max(0, Math.ceil((p99 - 17) / 10) * 10));
+    return {
+      secs,
+      hiccupsOff: hiccups(0),
+      hiccupsWith: hiccups(bufferMs),
+      hostStutters: perMin(gaps),
+      suggestion,
+      fps: frameMs ? 1000 / frameMs : 0,
+    };
+  }
+}
+
+// Auto delay buffer: raise right away when the connection gets shaky, come back down slowly
+// (only after ~20 s of calm, 50 ms at a time) so it doesn't flap.
+class AutoBuffer {
+  constructor() { this.lowSince = null; }
+  step(analysis, current, now = performance.now()) {
+    if (!analysis) return current;
+    const target = analysis.suggestion;
+    if (target > current) { this.lowSince = null; return target; }
+    if (target < current - 30) {
+      if (this.lowSince == null) this.lowSince = now;
+      if (now - this.lowSince > 20000) { this.lowSince = now; return Math.max(target, current - 50); }
+    } else this.lowSince = null;
+    return current;
   }
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 if (typeof module !== 'undefined') {
-  module.exports = { RESOLUTIONS, CODECS, CONTENT, targetSize, autoMbps, hiFiAudioSdp, preferCodec, bitrateHints, makeSdpTransform, OnTimeMeter };
+  module.exports = { RESOLUTIONS, CODECS, CONTENT, targetSize, autoMbps, hiFiAudioSdp, preferCodec, bitrateHints, makeSdpTransform, PlaybackMeter, AutoBuffer };
 }

@@ -212,7 +212,8 @@
       </div>
       <div class="viewer-prefs">
         <label class="field inline"><span>Delay buffer</span><input type="range" id="lobby-buffer" min="0" max="1000" step="10"><b id="lobby-buffer-val"></b></label>
-        <p class="muted small">More buffer = smoother on shaky internet, but a little later. You'll see how much it helps once the stream starts.</p>
+        <label class="check small"><input type="checkbox" id="lobby-auto"> Auto — keeps adjusting to your connection (recommended)</label>
+        <p class="muted small">A buffer smooths out a shaky connection, at the cost of a little delay. It can't fix a stream that stutters on the host's side — the watch controls tell you which it is.</p>
       </div>
     </div>
     <div class="panel cut roster-panel">
@@ -245,11 +246,12 @@
     <button id="w-fill" class="small" title="Zoom until the black bars are gone">Fill</button>
     <button id="w-reset" class="small" title="Whole picture, centered">Fit</button>
     <button id="w-center" class="small" title="Center the picture (keeps your zoom)">Center</button>
-    <label class="ctl buffer-ctl">
-      <span>Delay buffer</span><input type="range" id="w-buffer" min="0" max="1000" step="10"><b id="w-buffer-val"></b>
+    <div class="ctl buffer-ctl">
+      <span>Delay buffer</span>
+      <button id="w-auto" class="small toggle" title="Auto keeps adjusting the buffer to your connection">Auto</button>
+      <input type="range" id="w-buffer" min="0" max="1000" step="10" title="Turn Auto off to set it yourself"><b id="w-buffer-val"></b>
       <span id="w-buffer-meter" class="meter"></span>
-    </label>
-    <button id="w-suggest" class="small" title="Pick the smallest buffer that keeps ~99% of frames on time">Auto</button>
+    </div>
     <label class="ctl vol" title="Up to 200% · double-click the number for 100%">🔊<input type="range" id="w-volume" min="0" max="2" step="0.05"><b id="w-volume-val">100%</b></label>
     <button id="w-chat" class="small" title="Chat (same key as in games)">💬</button>
     <button id="w-full" class="small">⛶</button>
