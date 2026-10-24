@@ -9,7 +9,7 @@ const ROOT = path.join(__dirname, '..');
 const OUT = path.join(__dirname, 'www');
 
 const SHARED = ['index.html', 'overlay.html', 'styles.css', 'overlay.css', 'faces.js', 'stream.js', 'app.js',
-  'medialink.js', 'appaudio.js', 'room.js', 'watch.js', 'pcm-worklet.js'];
+  'medialink.js', 'appaudio.js', 'room.js', 'watch.js', 'pcm-worklet.js', 'overlay.js'];
 const MOBILE = ['mobile.js', 'mobile.css', 'mobile-overlay.js'];
 
 fs.rmSync(OUT, { recursive: true, force: true });

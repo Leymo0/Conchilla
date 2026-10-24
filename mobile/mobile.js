@@ -149,8 +149,13 @@
       tips.innerHTML = `
         <div><b>Watching:</b> tap the picture for the controls, double-tap for fullscreen.</div>
         <div><b>Black bars?</b> Pinch to zoom, drag to move the picture.</div>
-        <div><b>Chat:</b> tap 💬 while watching; messages pop up over the stream.</div>`;
+        <div><b>Chat:</b> tap 💬 while watching; messages pop up over the stream.</div>
+        <b id="tip-chat-key" hidden></b>`;
     }
+    // no game hotkeys on a phone
+    window.refreshChatHints = () => {
+      for (const id of ['host-chat-hint', 'lobby-chat-hint']) { const el = $(id); if (el) el.textContent = ''; }
+    };
     // settings: only the chat-card options make sense on a phone
     const panels = document.querySelectorAll('#view-settings .panel');
     if (panels[0]) panels[0].hidden = true;                       // hotkeys

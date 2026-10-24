@@ -74,3 +74,15 @@ body.mobile #stage { touch-action: none; }
 body.chat-open #chat-overlay { pointer-events: auto; }
 body:not([data-view="watch"]) #chat-overlay { display: none; }
 body.chat-open .watch-controls { opacity: 0; pointer-events: none; }
+
+/* phone sideways: keep the controls to a slim strip */
+@media (max-height: 500px) {
+  body.mobile .watch-controls { bottom: max(6px, env(safe-area-inset-bottom)); padding: 6px 10px; gap: 6px 8px; max-width: calc(100% - 16px); width: max-content; }
+  body.mobile .watch-controls button.small { padding: 6px 9px; font-size: 10px; }
+  body.mobile .watch-controls .ctl { font-size: 10px; }
+  body.mobile .watch-controls .ctl > span:first-child { display: none; }      /* "Zoom / crop", "Delay buffer" labels */
+  body.mobile .watch-controls .ctl input[type=range] { width: 80px; }
+  body.mobile .watch-controls .ctl b { min-width: 34px; font-size: 10px; }
+  body.mobile .meter { font-size: 10px; }
+  body.mobile #w-buffer-val { display: none; }                               /* the Auto button says enough */
+}
