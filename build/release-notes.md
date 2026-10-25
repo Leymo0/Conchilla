@@ -1,5 +1,6 @@
-**Conchilla 0.5.2**: getting back into a sealed room, full-screen chat on Android
+**Conchilla 0.5.3**: getting back in is easier
 
+- **Lock joins only keeps out *new* people.** Anyone who was already in the room can come back after dropping, even while joins are locked. (The lock is off when a room opens, as before.)
 - **Getting back in after you drop:** if the room is sealed when you tap Join, Conchilla keeps trying for 3 minutes ("ask the host to press 🔓 Unseal — still trying…") and lets you in as soon as the host unseals. You don't have to time it.
 - **Host:** Unseal now checks the room really is back on the lobby server. It retries by itself and says **🔓 Open — waiting for them to come back** once it works. The room stays open for 5 minutes (was 3).
 

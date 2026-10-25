@@ -21,6 +21,7 @@ const Room = (() => {
   // host state
   const members = new Map();         // id → { id, name, face, color, conn, peerId, call, watching, lastSeen, stats, rate }
   const blocked = new Map();         // id → name
+  const known = new Set();           // everyone who's been in this room: the join lock doesn't keep them out
   let locked = false;
   let sealed = false, resealTimer = null, opened = false, reopenTries = 0;
   let hostWarn = '', warnStreak = 0;
@@ -120,7 +121,7 @@ const Room = (() => {
     reset();
     role = 'host';
     me = { id: 'host', name, face: settings.face, color: settings.color, host: true };
-    locked = false; sealed = false; blocked.clear(); members.clear();
+    locked = false; sealed = false; blocked.clear(); members.clear(); known.clear();
     clearTimeout(resealTimer);
     $('lock-joins').checked = false;
     $('host-chat').innerHTML = '';
@@ -206,7 +207,7 @@ const Room = (() => {
       const deny = (reason) => { c.send({ t: 'denied', reason }); setTimeout(() => c.close(), 400); };
       if (blocked.has(id)) return deny('blocked');
       const existing = members.get(id);
-      if (!existing && locked) return deny('locked');
+      if (!existing && locked && !known.has(id)) return deny('locked');   // locked = nobody NEW; people coming back are fine
       if (!existing && members.size >= (settings.host.maxViewers || 8)) return deny('full');
 
       const name = cleanName(meta.name);
@@ -223,6 +224,7 @@ const Room = (() => {
         watching: true, lastSeen: Date.now(), call: null, stats: null, rate: [],
       };
       members.set(id, m);
+      known.add(id);
       c.send({ t: 'welcome', you: { id: m.pub, color }, code, history: history.filter((h) => !h.system).slice(-40) });   // my own notes ("Room open…") stay mine
       if (!existing) system(`${name} joined`);
       broadcastRoster();
@@ -353,6 +355,7 @@ const Room = (() => {
     const id = m.id;
     try { m.conn.send({ t: 'kicked', blocked: block }); } catch { /* gone */ }
     if (block) blocked.set(id, m.name);
+    known.delete(id);                   // kicked: the join lock applies to them again
     hangUp(m);
     members.delete(id);
     setTimeout(() => { try { m.conn.close(); } catch { /* gone */ } }, 400);
