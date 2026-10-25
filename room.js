@@ -22,7 +22,7 @@ const Room = (() => {
   const members = new Map();         // id → { id, name, face, color, conn, peerId, call, watching, lastSeen, stats, rate }
   const blocked = new Map();         // id → name
   let locked = false;
-  let sealed = false, resealTimer = null, opened = false;
+  let sealed = false, resealTimer = null, opened = false, reopenTries = 0;
   let hostWarn = '', warnStreak = 0;
   let stream = null, streaming = false, cfg = null;
   let sources = [], sourceTab = 'screen';
@@ -31,7 +31,7 @@ const Room = (() => {
   let conn = null, roster = [], roomState = {}, watching = true;
   let chatOnly = false, linked = false;  // joined just for chat · joined through my PC (phone link)
   let link = null;                       // PC side of a phone link: { code, peer, conn, timer }
-  let leaving = false, lastHostBeat = 0, retryTimer = null, retries = 0, connectTimer = null;
+  let leaving = false, lastHostBeat = 0, retryTimer = null, retries = 0, connectTimer = null, knockUntil = 0;
 
   const peerOptions = () => ({ config: iceConfig(), debug: 0, ...(settings.peerServer || {}) });
   const cleanName = (s) => String(s || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 20) || 'Someone';
@@ -145,6 +145,7 @@ const Room = (() => {
     peer.on('open', () => {
       if (sealed) { peer.disconnect(); return; }
       setHostStatus('Room open', 'ok');
+      reopenTries = 0;
       if (!opened) system('Room open — press Copy and send the code to your friends');
       else system('🔓 Room unsealed — the code works again');
       opened = true;
@@ -160,6 +161,13 @@ const Room = (() => {
       if (err.type === 'unavailable-id') {
         // Our code got taken while sealed (practically never). Before anyone joined: just pick a new one.
         if (!members.size && !streaming) { peer.destroy(); openRoom(); return; }
+        // Reopening: the lobby server may still remember the room for a moment, try again a few times
+        if (!sealed && reopenTries < 6) {
+          reopenTries++;
+          setHostStatus(`Reopening the room… (try ${reopenTries + 1})`, 'busy');
+          setTimeout(() => { if (!sealed && peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 4000);
+          return;
+        }
         sealed = true; renderSealState();
         modal("Couldn't reopen the room", 'Someone else is using this code right now. Close the room and open a new one if a friend needs to get back in.');
         return;
@@ -309,11 +317,21 @@ const Room = (() => {
   function unseal() {
     if (!sealed || !peer) return;
     sealed = false;
+    reopenTries = 0;
     if (peer.disconnected) peer.reconnect();
-    renderSealState();
+    setHostStatus('Reopening the room…', 'busy');
+    // make sure it really is back on the lobby server
+    const check = (n) => setTimeout(() => {
+      if (sealed || !peer || peer.destroyed) return;
+      if (peer.open) { setHostStatus('🔓 Open — waiting for them to come back', 'ok'); return; }
+      if (peer.disconnected) { try { peer.reconnect(); } catch { /* retried below */ } }
+      if (n < 6) check(n + 1);
+      else setHostStatus("Couldn't reach the lobby server — press Seal, then Unseal again", 'warn');
+    }, 5000);
+    check(0);
     broadcastRoster();
     clearTimeout(resealTimer);
-    resealTimer = setTimeout(() => { if (!sealed && streaming && settings.host.autoSeal !== false) seal('auto'); }, 3 * 60 * 1000);
+    resealTimer = setTimeout(() => { if (!sealed && streaming && settings.host.autoSeal !== false) seal('auto'); }, 5 * 60 * 1000);
   }
 
   function renderSealState() {
@@ -732,6 +750,7 @@ const Room = (() => {
     document.body.classList.toggle('chat-only', chatOnly);
     me = { id: settings.clientId, name, face: settings.face, color: settings.color };
     leaving = false; retries = 0; watching = !chatOnly; roster = []; roomState = {};
+    knockUntil = Date.now() + 3 * 60 * 1000;
     $('join-btn').disabled = true;
     $('join-error').textContent = 'Connecting…';
     peer = new Peer(undefined, peerOptions());
@@ -741,6 +760,18 @@ const Room = (() => {
     peer.on('error', (err) => {
       if (err.type === 'peer-unavailable') {
         if (conn?.open || retries > 0) return;           // handled by the retry loop
+        // Not there (sealed, or the host is reopening it): keep knocking for 3 minutes
+        if (!leaving && Date.now() < knockUntil) {
+          clearTimeout(connectTimer);
+          conn = null;
+          $('join-btn').disabled = false;
+          $('join-error').textContent = linked
+            ? "Can't find your PC's phone link yet — still trying… (make a new code on the PC if it ran out)"
+            : 'The room is closed or sealed right now — ask the host to press 🔓 Unseal. Still trying…';
+          clearTimeout(retryTimer);
+          retryTimer = setTimeout(() => { if (role === 'guest' && !leaving && !conn && peer && !peer.destroyed) connect(); }, 4000);
+          return;
+        }
         fail(linked ? 'No phone link with that code. Make a new one on your PC (📱 Phone in the lobby) and use it within 3 minutes.'
                     : 'No room with that code. Check you pasted all of it — or the host closed the room.');
       } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
