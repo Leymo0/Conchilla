@@ -292,7 +292,7 @@ const Room = (() => {
     const now = Date.now();
     broadcast({ t: 'hb' });
     for (const m of [...members.values()]) {
-      if (now - m.lastSeen > 15000) {          // vanished without saying bye
+      if (now - m.lastSeen > 30000) {          // vanished without saying bye (phones in the background get some slack)
         try { m.conn.close(); } catch { /* gone */ }
         hangUp(m);
         members.delete(m.id);
@@ -1015,7 +1015,7 @@ const Room = (() => {
   function guestBeat() {
     if (conn?.open) conn.send({ t: 'hb' });
     if (link?.conn?.open) { try { link.conn.send({ t: 'hb' }); } catch { /* closing */ } }
-    if (conn?.open && Date.now() - lastHostBeat > 12000) {      // host silent: treat as lost
+    if (conn?.open && Date.now() - lastHostBeat > 20000) {      // host silent: treat as lost
       const c = conn;
       conn = null;
       try { c.close(); } catch { /* gone */ }

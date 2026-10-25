@@ -1,6 +1,11 @@
 package com.peri.conchilla;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.net.Uri;
@@ -73,4 +78,32 @@ public class ConchillaNativePlugin extends Plugin {
         getContext().startActivity(i);
         call.resolve(new JSObject());
     }
+
+    // In a room: keep the connection alive in the background (ongoing notification).
+    // {on, title, text}; call again with new text to update the notification.
+    @PluginMethod
+    public void roomService(PluginCall call) {
+        boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        Activity a = getActivity();
+        if (on) {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(a, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                && !asked) {
+                asked = true;
+                ActivityCompat.requestPermissions(a, new String[] { Manifest.permission.POST_NOTIFICATIONS }, 71);
+            }
+            try {
+                RoomService.update(getContext(), call.getString("title", "In a Conchilla room"), call.getString("text", "Staying connected"));
+            } catch (Exception e) {
+                call.reject("couldn't start: " + e.getMessage());
+                return;
+            }
+            MainActivity.keepRunning = true;
+        } else {
+            MainActivity.keepRunning = false;
+            RoomService.stop(getContext());
+        }
+        call.resolve();
+    }
+
+    private static boolean asked = false;
 }

@@ -94,6 +94,11 @@
     showOverlay: () => { overlayFrame(); },
     hideOverlay: () => {},
     toOverlay: (msg) => {
+      // in another app: show the newest message in the "in a room" notification
+      if (msg.type === 'chat' && (inBackground || document.hidden) && !msg.msg?.system && roomOn
+          && msg.msg?.id !== (typeof Room !== 'undefined' ? Room.me?.id : null)) {
+        call(Native, 'roomService', { on: true, title: `💬 ${msg.msg.name}`, text: String(msg.msg.text).slice(0, 200) });
+      }
       // chat only (phone in a pocket / next to the laptop): a short buzz for other people's messages
       if (msg.type === 'chat' && !msg.msg?.system && document.body.classList.contains('chat-only')
           && msg.msg?.id !== (typeof Room !== 'undefined' ? Room.me?.id : null)) { try { navigator.vibrate?.(40); } catch { /* no vibration */ } }
@@ -218,13 +223,20 @@
   }
 
   // keep the screen on while in a room; back button walks back through the screens
+  let roomOn = false;
   function watchViews() {
     let last = null;
     new MutationObserver(() => {
       const view = document.body.dataset.view;
       if (view === last) return;
       last = view;
-      call(Native, 'keepAwake', { on: view === 'watch' || view === 'lobby' });
+      const inRoom = view === 'watch' || view === 'lobby';
+      call(Native, 'keepAwake', { on: inRoom });
+      // stay connected while in another app (Android freezes background apps otherwise)
+      if (inRoom !== roomOn) {
+        roomOn = inRoom;
+        call(Native, 'roomService', inRoom ? { on: true, title: 'In a Conchilla room', text: 'Staying connected — new messages show up here' } : { on: false });
+      }
       if (view !== 'watch' && fullscreen) window.conchilla.fullscreen(false);
       if (view !== 'watch' && chatOpen()) window.conchilla.openChat();
     }).observe(document.body, { attributes: true, attributeFilter: ['data-view'] });
@@ -256,6 +268,15 @@
       }
     } catch { /* offline: fine */ }
   }
+
+  // back in the app: the notification goes back to its quiet text
+  let inBackground = false;
+  const backInApp = () => { if (roomOn) call(Native, 'roomService', { on: true, title: 'In a Conchilla room', text: 'Staying connected — new messages show up here' }); };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !inBackground) backInApp(); });
+  try {
+    CapApp?.addListener('pause', () => { inBackground = true; });
+    CapApp?.addListener('resume', () => { inBackground = false; backInApp(); });
+  } catch { /* not on a phone */ }
 
   document.addEventListener('DOMContentLoaded', () => {
     adaptPages();
