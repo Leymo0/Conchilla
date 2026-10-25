@@ -178,6 +178,45 @@
     $('w-full')?.setAttribute('title', 'Fullscreen (landscape)');
   }
 
+  // lobby chat as a phone chat app: ⛶ full-screen chat, 👥 people, ▶ watch, the box stays above the keyboard
+  function chatTools() {
+    const panel = document.querySelector('#view-lobby .chat-panel');
+    if (!panel) return;
+    const log = $('lobby-chat');
+    const tools = document.createElement('div');
+    tools.id = 'chat-tools';
+    tools.innerHTML = '<button id="ct-people" class="small" type="button">👥 <span id="ct-count">0</span></button>'
+      + '<button id="ct-watch" class="small" type="button" hidden>▶ Watch</button>'
+      + '<button id="ct-full" class="small" type="button" title="Full-screen chat">⛶</button>';
+    panel.querySelector('h2').appendChild(tools);
+    const toBottom = () => { log.scrollTop = log.scrollHeight; };
+    $('ct-full').onclick = () => { document.body.classList.toggle('chat-full'); document.body.classList.remove('show-people'); setTimeout(toBottom, 50); };
+    $('ct-people').onclick = () => document.body.classList.toggle('show-people');
+    $('ct-watch').onclick = () => $('rewatch').click();
+    const sync = () => {
+      $('ct-count').textContent = $('lobby-count').textContent || '0';
+      $('ct-watch').hidden = $('rewatch').hidden;
+    };
+    new MutationObserver(sync).observe($('lobby-roster'), { childList: true });
+    new MutationObserver(sync).observe($('rewatch'), { attributes: true, attributeFilter: ['hidden'] });
+    // chat only opens straight into the full-screen chat
+    let wasChatOnly = false;
+    new MutationObserver(() => {
+      const now = document.body.classList.contains('chat-only');
+      if (now && !wasChatOnly) document.body.classList.add('chat-full');
+      if (!now && wasChatOnly) document.body.classList.remove('chat-full', 'show-people');
+      wasChatOnly = now;
+    }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    // typing: hide everything else so the keyboard doesn't squeeze the chat away
+    const input = panel.querySelector('.chat-form input');
+    input.addEventListener('focus', () => { document.body.classList.add('typing'); setTimeout(toBottom, 300); });
+    input.addEventListener('blur', () => document.body.classList.remove('typing'));
+    window.addEventListener('resize', () => { if (document.body.classList.contains('typing')) toBottom(); });
+    // the send button mustn't close the keyboard
+    panel.querySelector('.chat-send').addEventListener('pointerdown', (e) => e.preventDefault());
+    panel.querySelector('.chat-form').addEventListener('submit', () => setTimeout(toBottom, 50));
+  }
+
   // keep the screen on while in a room; back button walks back through the screens
   function watchViews() {
     let last = null;
@@ -220,6 +259,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     adaptPages();
+    chatTools();
     watchViews();
     backButton();
     setTimeout(quietUpdateCheck, 3000);

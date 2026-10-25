@@ -215,7 +215,7 @@ const Room = (() => {
         watching: true, lastSeen: Date.now(), call: null, stats: null, rate: [],
       };
       members.set(id, m);
-      c.send({ t: 'welcome', you: { id: m.pub, color }, code, history: history.slice(-40) });
+      c.send({ t: 'welcome', you: { id: m.pub, color }, code, history: history.filter((h) => !h.system).slice(-40) });   // my own notes ("Room open…") stay mine
       if (!existing) system(`${name} joined`);
       broadcastRoster();
       if (streaming && m.watching) callMember(m);

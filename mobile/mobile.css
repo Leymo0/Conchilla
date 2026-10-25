@@ -44,16 +44,6 @@ body.mobile [hidden] { display: none !important; }
 /* ---------- lobby ---------- */
 body.mobile .bar { flex-wrap: wrap; gap: 8px 12px; padding: 10px 14px; }
 body.mobile .bar h1 { font-size: 15px; }
-body.mobile .room-chip b { font-size: 13px; }
-body.mobile #lobby-status { flex-basis: 100%; font-size: 11px; }
-body.mobile .lobby-grid { display: flex; flex-direction: column; overflow: auto; padding: 12px; gap: 12px; }
-body.mobile .lobby-grid .waiting-panel { flex: none; }
-body.mobile .waiting { padding: 8px 0 14px; }
-body.mobile .logo.pulse { width: 72px; height: 72px; }
-body.mobile .waiting-title { font-size: 17px; letter-spacing: .14em; }
-body.mobile #rewatch { padding: 14px 22px; font-size: 14px; }
-body.mobile .roster-panel { flex: none; max-height: 34vh; }
-body.mobile .chat-panel { flex: none; min-height: 50vh; }
 body.mobile .field.inline > span { min-width: 80px; }
 
 /* ---------- watching ---------- */
@@ -92,13 +82,57 @@ body.mobile .phone-btn { display: none; }                 /* the PC makes link c
 body.mobile .link-hint { display: block; margin-top: 8px; line-height: 1.45; }
 body.mobile .join-opt { font-size: 14px; }
 body.mobile .join-opt input { width: 20px; height: 20px; }
-body.mobile.chat-only .lobby-grid { overflow: hidden; }
-body.mobile.chat-only .waiting-panel { order: 0; padding: 12px 14px; }
-body.mobile.chat-only .waiting { flex-direction: row; gap: 12px; padding: 0; text-align: left; justify-content: flex-start; flex-wrap: wrap; }
-body.mobile.chat-only .waiting .logo { width: 40px; height: 40px; animation: none; }
-body.mobile.chat-only .waiting-title { font-size: 14px; }
-body.mobile.chat-only #waiting-sub { flex-basis: 100%; font-size: 13px; }
-body.mobile.chat-only .waiting-panel::before { display: none; }
-body.mobile.chat-only .chat-panel { order: 1; flex: 1 1 auto; min-height: 0; }
-body.mobile.chat-only .roster-panel { order: 2; max-height: 20vh; }
-body.mobile.chat-only .chat-form input { padding: 12px; }
+
+
+/* ---------- lobby: a chat app layout (chat fills the screen, the box stays above the keyboard) ---------- */
+body.mobile #view-lobby .bar { flex-wrap: wrap; gap: 6px 10px; padding: 8px 12px; }
+body.mobile #view-lobby .bar h1 { display: none; }
+body.mobile #view-lobby .bar .back { padding: 7px 12px; font-size: 11px; }
+body.mobile #view-lobby .room-chip { padding: 3px 3px 3px 10px; margin-right: auto; }
+body.mobile #view-lobby .room-chip b { font-size: 12px; letter-spacing: .08em; }
+body.mobile #lobby-status { flex-basis: 100%; font-size: 10px; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.mobile .lobby-grid { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding: 8px 10px; gap: 8px; }
+body.mobile .lobby-grid .panel { padding: 10px 12px; }
+
+body.mobile .lobby-grid .waiting-panel { order: 0; flex: none; }
+body.mobile .waiting { padding: 4px 0 8px; gap: 8px; }
+body.mobile .logo.pulse { width: 56px; height: 56px; }
+body.mobile .waiting-title { font-size: 15px; letter-spacing: .12em; }
+body.mobile #rewatch { padding: 12px 20px; font-size: 13px; }
+
+/* people: a compact strip */
+body.mobile .roster-panel { order: 1; flex: none; max-height: 30vh; }
+body.mobile .roster-panel h2 { margin-bottom: 6px; }
+body.mobile .roster { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+body.mobile .roster li { padding: 4px 8px 4px 6px; gap: 6px; flex: none; }
+body.mobile .roster li .face { width: 24px; height: 24px; }
+body.mobile .roster .who b { font-size: 13px; }
+body.mobile .roster .row-stats, body.mobile .roster .row-actions { display: none; }
+
+/* chat: takes all the room that's left; messages scroll, the box sits at the bottom */
+body.mobile .chat-panel { order: 2; flex: 1 1 0; min-height: 150px; display: flex; flex-direction: column; }
+body.mobile .chat-panel h2 { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex: none; }
+body.mobile .chat-log { flex: 1 1 0; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; gap: 10px; padding-bottom: 4px; }
+body.mobile .chat-log .text { font-size: 15px; }
+body.mobile .chat-form { flex: none; display: flex; gap: 8px; margin-top: 8px; }
+body.mobile .chat-form input { flex: 1; min-width: 0; padding: 11px 12px; }
+.chat-send { display: none; }
+body.mobile .chat-send { display: block; flex: none; padding: 0 16px; font-size: 18px; background: var(--cy); color: #001417; border-color: var(--cy); }
+
+#chat-tools { margin-left: auto; display: flex; gap: 6px; }
+#chat-tools button { padding: 6px 10px; font-size: 12px; letter-spacing: .04em; }
+#chat-tools #ct-watch { background: var(--cy); color: #001417; border-color: var(--cy); }
+body.show-people #ct-people, body.chat-full #ct-full { background: rgba(25, 240, 255, .25); color: #fff; }
+
+/* full-screen chat (⛶, and how chat-only starts) */
+body.mobile.chat-full #view-lobby .waiting-panel,
+body.mobile.chat-full #view-lobby .roster-panel { display: none; }
+body.mobile.chat-full.show-people #view-lobby .roster-panel { display: flex; }
+body.mobile.chat-full .lobby-grid { padding: 6px 8px; }
+body.mobile.chat-full .chat-panel::before { display: none; }
+
+/* typing: the keyboard takes half the screen, so give it all to the chat */
+body.mobile.typing #view-lobby .waiting-panel,
+body.mobile.typing #view-lobby .roster-panel,
+body.mobile.typing #lobby-status { display: none; }
+body.mobile.typing .chat-panel { min-height: 0; }
