@@ -1,7 +1,7 @@
 {
   "name": "conchilla",
   "productName": "Conchilla",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "description": "Easy friend-group screen share with a neon in-game chat overlay",
   "main": "main.js",
