@@ -93,7 +93,12 @@
 
     showOverlay: () => { overlayFrame(); },
     hideOverlay: () => {},
-    toOverlay: (msg) => toFrame('overlay:event', msg),
+    toOverlay: (msg) => {
+      // chat only (phone in a pocket / next to the laptop): a short buzz for other people's messages
+      if (msg.type === 'chat' && !msg.msg?.system && document.body.classList.contains('chat-only')
+          && msg.msg?.id !== (typeof Room !== 'undefined' ? Room.me?.id : null)) { try { navigator.vibrate?.(40); } catch { /* no vibration */ } }
+      toFrame('overlay:event', msg);
+    },
     onOverlayMessage: on('overlay:message'),
     openChat: () => {
       if (chatOpen()) { toFrame('overlay:close'); document.body.classList.remove('chat-open'); return; }
@@ -150,6 +155,7 @@
         <div><b>Watching:</b> tap the picture for the controls, double-tap for fullscreen.</div>
         <div><b>Black bars?</b> Pinch to zoom, drag to move the picture.</div>
         <div><b>Chat:</b> tap 💬 while watching; messages pop up over the stream.</div>
+        <div><b>Watching on your laptop?</b> Tick <b>Chat only</b> to just chat here — or press <b>📱 Phone</b> in the laptop's lobby and join with that code to type as yourself.</div>
         <b id="tip-chat-key" hidden></b>`;
     }
     // no game hotkeys on a phone

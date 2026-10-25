@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS = {
     sourceId: null,
     autoSeal: true,        // drop off the lobby server once streaming starts
   },
-  viewer: { bufferMs: 150, autoBuffer: true, zoom: 0, panX: 50, panY: 50, volume: 0.9, showStats: false },
+  viewer: { bufferMs: 150, autoBuffer: true, zoom: 0, panX: 50, panY: 50, volume: 0.9, showStats: false, chatOnly: false },
   viewerVersion: 2,
 };
 

@@ -251,12 +251,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const name = needName();
     if (name) Room.host(name);
   };
+  $('join-chat-only').checked = !!settings.viewer.chatOnly;
+  $('join-chat-only').onchange = (e) => save({ viewer: { chatOnly: e.target.checked } });
   $('join-btn').onclick = () => {
     const name = needName();
     if (!name) return;
     const code = cleanCode($('join-code').value);
-    if (code.length !== CODE_LENGTH) { $('join-error').textContent = 'Paste the full room code (16 letters/numbers, like K7QM-2XRP-9TWD-H4NC)'; return; }
+    if (code.length !== CODE_LENGTH && code.length !== LINK_CODE_LENGTH) {
+      $('join-error').textContent = 'Paste the full room code (16 letters/numbers, like K7QM-2XRP-9TWD-H4NC) — or an 8-letter phone link code from your PC';
+      return;
+    }
     $('join-error').textContent = '';
-    Room.join(name, code);
+    Room.join(name, code, { chatOnly: $('join-chat-only').checked });
   };
 });

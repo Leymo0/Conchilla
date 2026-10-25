@@ -86,3 +86,19 @@ body.chat-open .watch-controls { opacity: 0; pointer-events: none; }
   body.mobile .meter { font-size: 10px; }
   body.mobile #w-buffer-val { display: none; }                               /* the Auto button says enough */
 }
+
+/* ---------- phone link + chat only ---------- */
+body.mobile .phone-btn { display: none; }                 /* the PC makes link codes, not the phone */
+body.mobile .link-hint { display: block; margin-top: 8px; line-height: 1.45; }
+body.mobile .join-opt { font-size: 14px; }
+body.mobile .join-opt input { width: 20px; height: 20px; }
+body.mobile.chat-only .lobby-grid { overflow: hidden; }
+body.mobile.chat-only .waiting-panel { order: 0; padding: 12px 14px; }
+body.mobile.chat-only .waiting { flex-direction: row; gap: 12px; padding: 0; text-align: left; justify-content: flex-start; flex-wrap: wrap; }
+body.mobile.chat-only .waiting .logo { width: 40px; height: 40px; animation: none; }
+body.mobile.chat-only .waiting-title { font-size: 14px; }
+body.mobile.chat-only #waiting-sub { flex-basis: 100%; font-size: 13px; }
+body.mobile.chat-only .waiting-panel::before { display: none; }
+body.mobile.chat-only .chat-panel { order: 1; flex: 1 1 auto; min-height: 0; }
+body.mobile.chat-only .roster-panel { order: 2; max-height: 20vh; }
+body.mobile.chat-only .chat-form input { padding: 12px; }

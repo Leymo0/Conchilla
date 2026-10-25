@@ -251,3 +251,14 @@ button.toggle.on { background: var(--cy); color: #001417; border-color: var(--cy
 #lobby-buffer:disabled { opacity: .35; }
 
 .host-warn { margin-top: 6px; color: var(--warn); font-weight: 600; }
+
+/* phone link */
+.phone-btn.on { color: var(--good); border-color: rgba(77, 255, 176, .6); box-shadow: 0 0 10px rgba(77, 255, 176, .3); }
+.link-box { max-width: 480px; }
+.link-box p { line-height: 1.5; margin: 0 0 14px; }
+.link-code-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.link-code { font-family: var(--mono); font-size: 30px; letter-spacing: .14em; color: var(--cy); text-shadow: 0 0 14px var(--cy-glow); }
+#link-status { min-height: 18px; margin-bottom: 6px; }
+.join-opt { margin-top: 10px; }
+.link-hint { display: none; }
+body.chat-only .viewer-prefs { display: none; }

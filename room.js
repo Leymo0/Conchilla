@@ -5,6 +5,11 @@
 //   joiner → host: chat {text} · watch {on} · hb
 //   host → joiner: welcome · roster · chat {msg} · system {text} · stream {on, reason}
 //                  kicked {blocked} · denied {reason} · closing · hb
+//
+// Phone link: a joiner's PC can let their phone chat as them. The phone connects to the PC
+// (not the host), the PC passes the room's chat and roster on and sends the phone's messages
+// as its own. The host never sees the phone, so it works in sealed rooms too.
+//   phone → PC: chat {text} · hb        PC → phone: welcome · roster · chat · stream · hb · linkend {reason}
 
 const Room = (() => {
   const MAX_TEXT = 300;
@@ -24,6 +29,8 @@ const Room = (() => {
 
   // joiner state
   let conn = null, roster = [], roomState = {}, watching = true;
+  let chatOnly = false, linked = false;  // joined just for chat · joined through my PC (phone link)
+  let link = null;                       // PC side of a phone link: { code, peer, conn, timer }
   let leaving = false, lastHostBeat = 0, retryTimer = null, retries = 0, connectTimer = null;
 
   const peerOptions = () => ({ config: iceConfig(), debug: 0, ...(settings.peerServer || {}) });
@@ -716,12 +723,15 @@ const Room = (() => {
   // JOINER
   // ======================================================================
 
-  function join(name, roomCode) {
+  function join(name, roomCode, opts = {}) {
     reset();
     role = 'guest';
     code = roomCode;
+    linked = roomCode.length === LINK_CODE_LENGTH;
+    chatOnly = linked || !!opts.chatOnly;
+    document.body.classList.toggle('chat-only', chatOnly);
     me = { id: settings.clientId, name, face: settings.face, color: settings.color };
-    leaving = false; retries = 0; watching = true; roster = []; roomState = {};
+    leaving = false; retries = 0; watching = !chatOnly; roster = []; roomState = {};
     $('join-btn').disabled = true;
     $('join-error').textContent = 'Connecting…';
     peer = new Peer(undefined, peerOptions());
@@ -731,7 +741,8 @@ const Room = (() => {
     peer.on('error', (err) => {
       if (err.type === 'peer-unavailable') {
         if (conn?.open || retries > 0) return;           // handled by the retry loop
-        fail('No room with that code. Check you pasted all of it — or the host closed the room.');
+        fail(linked ? 'No phone link with that code. Make a new one on your PC (📱 Phone in the lobby) and use it within 3 minutes.'
+                    : 'No room with that code. Check you pasted all of it — or the host closed the room.');
       } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
         if (!conn?.open && retries === 0) fail("Can't reach the lobby server. Check your internet and try again.");
       }
@@ -741,7 +752,7 @@ const Room = (() => {
   function connect() {
     if (leaving || !peer || peer.destroyed) return;
     clearTimeout(connectTimer);
-    conn = peer.connect(ROOM_PREFIX + code, {
+    conn = peer.connect((linked ? LINK_PREFIX : ROOM_PREFIX) + code, {
       reliable: true,
       metadata: { clientId: settings.clientId, name: me.name, face: me.face, color: settings.color },
     });
@@ -773,6 +784,10 @@ const Room = (() => {
         const first = currentView() !== 'lobby' && currentView() !== 'watch';
         me.color = d.you.color;
         me.id = d.you.id;
+        if (linked) {                                   // the phone speaks as its PC
+          if (d.you.name) me.name = cleanName(d.you.name);
+          if (d.you.face) me.face = validFace(d.you.face);
+        }
         if (first) {
           $('join-btn').disabled = false;
           $('join-error').textContent = '';
@@ -780,10 +795,11 @@ const Room = (() => {
           history = [];
           (d.history || []).forEach(addChat);
           showView('lobby');
-          $('lobby-code').textContent = `${code.slice(0, 4)}-••••-••••-••••`;
+          $('lobby-code').textContent = linked ? 'PHONE LINK' : `${code.slice(0, 4)}-••••-••••-••••`;
           api.showOverlay();
           setTimeout(syncOverlay, 400);
-          if (me.color !== settings.color) system(`${colorName(settings.color)} was taken, so you're ${colorName(me.color)} in this room`);
+          if (linked) system(`📱 Linked to your PC — what you type here shows up as ${me.name}`);
+          else if (me.color !== settings.color) system(`${colorName(settings.color)} was taken, so you're ${colorName(me.color)} in this room`);
           clearInterval(hbTimer);
           hbTimer = setInterval(guestBeat, 2000);
         } else {
@@ -822,8 +838,97 @@ const Room = (() => {
         }[d.reason] || "The host didn't let you in.", true);
         break;
       case 'closing': endSession('The host closed the room.'); break;
+      case 'linkend': if (linked) endSession(String(d.reason || 'Your PC ended the phone link.').slice(0, 200)); break;
       default: break;
     }
+    // pass the room on to my linked phone
+    if (link?.conn?.open && (d.t === 'chat' || d.t === 'roster' || d.t === 'stream')) {
+      try { link.conn.send(d); } catch { /* closing */ }
+    }
+  }
+
+  // ======================================================================
+  // PHONE LINK (PC side): my phone chats in this room as me
+  // ======================================================================
+
+  function startLink() {
+    if (role !== 'guest' || linked || !me) return null;
+    if (link?.conn?.open) { renderLinkBox(); return link.code; }
+    stopLink();
+    const lc = randomCode(LINK_CODE_LENGTH);
+    const p = new Peer(LINK_PREFIX + lc, peerOptions());
+    link = { code: lc, peer: p, conn: null, timer: null, status: 'Getting a code…' };
+    const mine = link;
+    p.on('open', () => { if (link === mine && !mine.conn) { mine.status = 'Waiting for your phone…'; renderLinkBox(); } });
+    p.on('error', (err) => {
+      if (link !== mine) return;
+      if (err.type === 'unavailable-id') { stopLink(); startLink(); return; }        // code clash: new code
+      if (!mine.conn) { mine.status = "Can't reach the lobby server for the phone link. Try again."; renderLinkBox(); }
+    });
+    p.on('connection', (c) => onLinkConn(mine, c));
+    mine.timer = setTimeout(() => { if (link === mine && !mine.conn) { stopLink(); setLinkStatus('The code ran out. Press 📱 Phone again for a new one.'); } }, 180000);
+    renderLinkBox();
+    return lc;
+  }
+
+  function onLinkConn(mine, c) {
+    if (link !== mine || mine.conn?.open) { c.on('open', () => c.close()); return; }
+    mine.conn = c;
+    c.on('open', () => {
+      if (link !== mine || !me) { c.close(); return; }
+      clearTimeout(mine.timer);
+      c.send({ t: 'welcome', you: { id: me.id, color: me.color, name: me.name, face: me.face },
+               history: history.filter((m) => !m.system).slice(-40) });
+      c.send({ t: 'roster', members: roster, locked: roomState.locked, sealed: roomState.sealed, streaming: roomState.streaming, stream: roomState.stream });
+      try { mine.peer.disconnect(); } catch { /* fine */ }    // nobody else can reach the link now
+      mine.status = '✓ Phone linked — type on it, it shows up as you';
+      system('📱 Your phone is linked — what you type there shows up as you');
+      renderLinkBox();
+    });
+    c.on('data', (d) => {
+      if (link !== mine || !d || typeof d !== 'object') return;
+      if (d.t === 'chat') sendChat(d.text);
+    });
+    c.on('close', () => {
+      if (link !== mine || mine.conn !== c) return;
+      mine.conn = null;
+      system('📱 Phone disconnected');
+      // let the same phone come back for 2 minutes (Wi-Fi blip, app in the background)
+      mine.status = 'Phone disconnected — it can reconnect with the same code for 2 minutes';
+      try { if (!mine.peer.destroyed) mine.peer.reconnect(); } catch { /* fine */ }
+      clearTimeout(mine.timer);
+      mine.timer = setTimeout(() => { if (link === mine && !mine.conn) stopLink(); }, 120000);
+      renderLinkBox();
+    });
+    c.on('error', () => {});
+  }
+
+  function stopLink(reason) {
+    if (!link) return;
+    const l = link;
+    link = null;
+    clearTimeout(l.timer);
+    if (l.conn?.open) { try { l.conn.send({ t: 'linkend', reason: reason || 'Your PC ended the phone link.' }); } catch { /* gone */ } }
+    setTimeout(() => { try { l.conn?.close(); } catch { /* gone */ } try { l.peer.destroy(); } catch { /* gone */ } }, 300);
+    renderLinkBox();
+  }
+
+  function setLinkStatus(text) { const el = $('link-status'); if (el) el.textContent = text; }
+
+  function renderLinkBox() {
+    const box = $('link-box');
+    if (!box) return;
+    $('link-code').textContent = link ? formatCode(link.code) : '—';
+    $('link-copy').disabled = !link;
+    $('link-stop').hidden = !link;
+    if (link) setLinkStatus(link.status);
+    const on = !!link?.conn?.open;
+    for (const id of ['lobby-phone', 'w-phone']) $(id)?.classList.toggle('on', on);
+  }
+
+  function openLinkBox() {
+    startLink();
+    $('link-box').hidden = false;
   }
 
   const colorName = (c) => c.charAt(0).toUpperCase() + c.slice(1);
@@ -837,6 +942,7 @@ const Room = (() => {
   }
 
   function setWatching(on) {
+    if (on && linked) return;              // a phone link only carries chat
     watching = on;
     if (conn?.open) conn.send({ t: 'watch', on });
     if (!on) { Watch.detach(); showView('lobby'); }
@@ -853,8 +959,14 @@ const Room = (() => {
     $('waiting-sub').textContent = live
       ? (roomState.stream ? `${roomState.stream.w}×${roomState.stream.h} · ${roomState.stream.fps} fps` : '')
       : 'You can chat while you wait. The stream opens by itself.';
-    $('rewatch').hidden = !(live && !watching);
-    $('lobby-status').textContent = roomState.sealed ? 'Connected · 🔒 sealed (if you leave, ask the host to Unseal)'
+    $('rewatch').hidden = !(live && !watching) || linked;
+    $('rewatch').textContent = chatOnly ? '▶ Watch here too' : '▶ Watch the stream';
+    if (chatOnly && !watching) {
+      $('waiting-title').textContent = linked ? 'PHONE LINK · CHAT' : 'CHAT ONLY';
+      $('waiting-sub').textContent = (linked ? `Typing as ${me?.name || 'you'} through your PC.` : "You're here to chat; the stream won't open.")
+        + (live ? ` ${hostName} is live${roomState.stream ? ` (${roomState.stream.w}×${roomState.stream.h})` : ''}.` : ` Waiting for ${hostName} to share.`);
+    }
+    $('lobby-status').textContent = linked ? 'Connected through your PC' : roomState.sealed ? 'Connected · 🔒 sealed (if you leave, ask the host to Unseal)'
       : roomState.locked ? 'Connected · 🔒 joins locked' : 'Connected';
   }
 
@@ -868,6 +980,7 @@ const Room = (() => {
 
   function guestBeat() {
     if (conn?.open) conn.send({ t: 'hb' });
+    if (link?.conn?.open) { try { link.conn.send({ t: 'hb' }); } catch { /* closing */ } }
     if (conn?.open && Date.now() - lastHostBeat > 12000) {      // host silent: treat as lost
       const c = conn;
       conn = null;
@@ -929,6 +1042,9 @@ const Room = (() => {
   }
 
   function reset() {
+    stopLink('Your PC is no longer in the room.');
+    if ($('link-box')) $('link-box').hidden = true;
+    document.body.classList.remove('chat-only');
     clearInterval(hbTimer); clearInterval(statsTimer); clearInterval(sourceTimer);
     clearTimeout(retryTimer); clearTimeout(connectTimer);
     Watch.detach();
@@ -978,12 +1094,18 @@ const Room = (() => {
   setInterval(() => { if (role === 'host') pushQuick(); }, 2000);
 
   $('lobby-leave').onclick = () => leave();
+  for (const id of ['lobby-phone', 'w-phone']) if ($(id)) $(id).onclick = openLinkBox;
+  if ($('link-box')) {
+    $('link-close').onclick = () => { $('link-box').hidden = true; };
+    $('link-stop').onclick = () => { stopLink(); setLinkStatus('Phone link ended.'); };
+    $('link-copy').onclick = () => { if (link) navigator.clipboard.writeText(formatCode(link.code)).then(() => setLinkStatus('Copied — now paste it on your phone')).catch(() => {}); };
+  }
   $('rewatch').onclick = () => setWatching(true);
   window.addEventListener('beforeunload', () => { if (role === 'host') broadcast({ t: 'closing' }); });
 
   return {
-    host, join, leave, sendChat, setWatching, quickState, pushQuick,
-    get role() { return role; }, get me() { return me; },
+    host, join, leave, sendChat, setWatching, quickState, pushQuick, startLink, stopLink,
+    get role() { return role; }, get me() { return me; }, get chatOnly() { return chatOnly; }, get linked() { return linked; },
     _debug: () => ({ role, code, members: [...members.keys()], streaming, locked, sealed, roster, roomState, peerOff: !!peer?.disconnected, cfg }),
   };
 })();
